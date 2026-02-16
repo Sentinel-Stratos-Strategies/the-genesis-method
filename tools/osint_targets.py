@@ -31,7 +31,92 @@ from pathlib import Path
 
 
 EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
-DOMAIN_RE = re.compile(r"^(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,}$")
+
+# TLDs that are almost always file extensions in forensic outputs (avoid false "domains").
+FILELIKE_TLDS_EXCLUDE = {
+    "mov",
+    "mp4",
+    "m4v",
+    "avi",
+    "mkv",
+    "jpg",
+    "jpeg",
+    "png",
+    "gif",
+    "heic",
+    "pdf",
+    "txt",
+    "json",
+    "plist",
+    "xml",
+    "yaml",
+    "yml",
+    "log",
+    "db",
+    "sqlite",
+    "csv",
+    "tsv",
+    "zip",
+    "rar",
+    "js",
+    "py",
+    "fs",
+    "le",
+    "so",
+    "gz",
+    "tar",
+    "7z",
+    "dmg",
+    "iso",
+    "aea",
+    "app",
+    "asset",
+    "bundle",
+    "html",
+    "xlsx",
+    "framework",
+    "kext",
+    "mtree",
+    "trustcache",
+    "history",
+    "pluginpayloadattachment",
+    "post",
+}
+
+# Small allowlist for gTLDs commonly seen in defensive OSINT.
+# Everything else that isn't a country code (len==2) is treated as low-confidence noise.
+COMMON_GTLD_ALLOWLIST = {
+    "com",
+    "net",
+    "org",
+    "edu",
+    "gov",
+    "mil",
+    "int",
+    "info",
+    "biz",
+    "pro",
+    "io",
+    "co",
+    "me",
+    "tv",
+    "ai",
+    "app",
+    "dev",
+    "cloud",
+    "site",
+    "online",
+    "support",
+    "store",
+    "shop",
+    "live",
+}
+
+# Reverse-DNS bundle IDs (com.apple.foo) are common in forensic outputs but
+# are not useful as OSINT "domains" by default.
+REVERSE_DNS_PREFIXES = {"com", "net", "org", "io", "edu", "gov"}
+
+UUID_LABEL_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
 
 # Noise filters for "run everywhere" OSINT. You can override with --include-apple-domains.
 DEFAULT_DOMAIN_SUFFIX_EXCLUDES = (
@@ -166,7 +251,36 @@ def is_domain(value: str) -> bool:
         return False
     if v.endswith(".local"):
         return False
-    return bool(DOMAIN_RE.match(v))
+    if v.startswith("appdomain-") or v.startswith("appdomaingroup-"):
+        return False
+    parts = v.split(".")
+    if len(parts) < 2:
+        return False
+    if len(parts) >= 3:
+        if parts[0] in REVERSE_DNS_PREFIXES:
+            return False
+        # Some artifacts prefix reverse-DNS with a digit (e.g., "4com.apple...").
+        for pre in REVERSE_DNS_PREFIXES:
+            if parts[0].endswith(pre) and parts[0][:-len(pre)].isdigit():
+                return False
+    tld = parts[-1]
+    if len(tld) < 2 or not tld.isalpha():
+        return False
+    if tld in FILELIKE_TLDS_EXCLUDE:
+        return False
+    if not (len(tld) == 2 or tld in COMMON_GTLD_ALLOWLIST or tld in SUSPICIOUS_TLDS):
+        return False
+    for lbl in parts[:-1]:
+        if not lbl or len(lbl) > 63:
+            return False
+        if UUID_LABEL_RE.match(lbl):
+            return False
+        # Labels cannot start/end with hyphens.
+        if lbl[0] == "-" or lbl[-1] == "-":
+            return False
+        if not re.fullmatch(r"[a-z0-9-]+", lbl):
+            return False
+    return True
 
 
 def is_email(value: str) -> bool:

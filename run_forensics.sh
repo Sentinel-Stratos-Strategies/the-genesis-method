@@ -715,6 +715,9 @@ run_osint_pipeline() {
   fi
 
   local args=(--targets-file "$targets_path" --out-dir "$out_dir" --pplx-env-file "$GENESIS_PPLX_ENV_FILE")
+  # Helpful VT enrichment that doesn't blow up API usage:
+  # - Fetch IP "resolutions" relationship for IPv4 only (descriptors) to identify related domains quickly.
+  args+=(--vt-ip-relationship resolutions --vt-ip-relationship-limit 10)
   if [[ "$with_sonar" == "1" ]]; then
     args+=(--with-sonar)
   fi

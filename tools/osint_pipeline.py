@@ -117,12 +117,45 @@ def hunter_base_url(env: dict[str, str] | None = None) -> str:
 
 def vt_domain(domain: str, api_key: str, timeout: int) -> dict:
     url = f"https://www.virustotal.com/api/v3/domains/{urllib.parse.quote(domain)}"
-    return _http_json(url, headers={"x-apikey": api_key}, timeout=timeout)
+    return _http_json(url, headers={"x-apikey": api_key, "accept": "application/json"}, timeout=timeout)
 
 
 def vt_ip(ip: str, api_key: str, timeout: int) -> dict:
     url = f"https://www.virustotal.com/api/v3/ip_addresses/{urllib.parse.quote(ip)}"
-    return _http_json(url, headers={"x-apikey": api_key}, timeout=timeout)
+    return _http_json(url, headers={"x-apikey": api_key, "accept": "application/json"}, timeout=timeout)
+
+
+def vt_ip_analyse(ip: str, api_key: str, timeout: int) -> dict:
+    url = f"https://www.virustotal.com/api/v3/ip_addresses/{urllib.parse.quote(ip)}/analyse"
+    return _http_json(url, headers={"x-apikey": api_key, "accept": "application/json"}, timeout=timeout, method="POST")
+
+
+def vt_ip_related_objects(ip: str, relationship: str, api_key: str, timeout: int, limit: int = 10, cursor: str | None = None) -> dict:
+    """
+    Get objects related to an IP address (full objects).
+    Endpoint: /ip_addresses/{ip}/{relationship}
+    """
+    qs = {"limit": str(max(1, int(limit)))}
+    if cursor:
+        qs["cursor"] = cursor
+    q = urllib.parse.urlencode(qs)
+    url = f"https://www.virustotal.com/api/v3/ip_addresses/{urllib.parse.quote(ip)}/{urllib.parse.quote(relationship)}?{q}"
+    return _http_json(url, headers={"x-apikey": api_key, "accept": "application/json"}, timeout=timeout)
+
+
+def vt_ip_related_descriptors(
+    ip: str, relationship: str, api_key: str, timeout: int, limit: int = 10, cursor: str | None = None
+) -> dict:
+    """
+    Get object descriptors related to an IP address (IDs + context).
+    Endpoint: /ip_addresses/{ip}/relationships/{relationship}
+    """
+    qs = {"limit": str(max(1, int(limit)))}
+    if cursor:
+        qs["cursor"] = cursor
+    q = urllib.parse.urlencode(qs)
+    url = f"https://www.virustotal.com/api/v3/ip_addresses/{urllib.parse.quote(ip)}/relationships/{urllib.parse.quote(relationship)}?{q}"
+    return _http_json(url, headers={"x-apikey": api_key, "accept": "application/json"}, timeout=timeout)
 
 
 def abuseipdb_check(ip: str, api_key: str, timeout: int) -> dict:
@@ -196,6 +229,11 @@ class RunConfig:
     abuseipdb: bool
     hunter: bool
     sonar: bool
+    vt_ip_analyse: bool
+    vt_ip_relationships: list[str]
+    vt_ip_relationship_mode: str
+    vt_ip_relationship_limit: int
+    vt_ip_relationship_include_ipv6: bool
     timeout: int
     sleep_s: float
     max_sonar_items: int
@@ -210,6 +248,21 @@ def main() -> int:
     parser.add_argument("--sleep-s", type=float, default=0.35, help="Sleep between API calls (rate-limit friendly).")
     parser.add_argument("--with-sonar", action="store_true", help="Enable Perplexity/Sonar synthesis (costs API calls).")
     parser.add_argument("--max-sonar-items", type=int, default=20, help="Limit number of domain/ip summaries to reduce spend.")
+    parser.add_argument("--vt-ip-analyse", action="store_true", help="Trigger VirusTotal IP reanalysis (extra API calls).")
+    parser.add_argument(
+        "--vt-ip-relationship",
+        action="append",
+        default=[],
+        help="VirusTotal IP relationship to fetch (repeatable). Example: --vt-ip-relationship resolutions",
+    )
+    parser.add_argument(
+        "--vt-ip-relationship-mode",
+        choices=("descriptors", "objects"),
+        default="descriptors",
+        help="Use descriptors (IDs only) or full objects for VT relationships.",
+    )
+    parser.add_argument("--vt-ip-relationship-limit", type=int, default=10, help="VT relationship limit (default: 10).")
+    parser.add_argument("--vt-ip-relationship-include-ipv6", action="store_true", help="Also fetch VT relationships for IPv6 targets.")
     parser.add_argument("--pplx-env-file", default=os.environ.get("GENESIS_PPLX_ENV_FILE") or os.environ.get("PPLX_ENV_FILE"))
     args = parser.parse_args()
 
@@ -240,6 +293,11 @@ def main() -> int:
         abuseipdb=bool(abuse_api),
         hunter=bool(hunter_api),
         sonar=bool(args.with_sonar),
+        vt_ip_analyse=bool(args.vt_ip_analyse),
+        vt_ip_relationships=sorted({r.strip() for r in (args.vt_ip_relationship or []) if r and r.strip()}),
+        vt_ip_relationship_mode=str(args.vt_ip_relationship_mode),
+        vt_ip_relationship_limit=max(1, int(args.vt_ip_relationship_limit)),
+        vt_ip_relationship_include_ipv6=bool(args.vt_ip_relationship_include_ipv6),
         timeout=args.timeout,
         sleep_s=max(0.0, float(args.sleep_s)),
         max_sonar_items=max(0, int(args.max_sonar_items)),
@@ -264,6 +322,11 @@ def main() -> int:
             "abuseipdb": cfg.abuseipdb,
             "hunter": cfg.hunter,
             "sonar": cfg.sonar,
+            "virustotal_ip_analyse": bool(cfg.vt and cfg.vt_ip_analyse),
+            "virustotal_ip_relationships": cfg.vt_ip_relationships,
+            "virustotal_ip_relationship_mode": cfg.vt_ip_relationship_mode,
+            "virustotal_ip_relationship_limit": cfg.vt_ip_relationship_limit,
+            "virustotal_ip_relationship_include_ipv6": cfg.vt_ip_relationship_include_ipv6,
         },
         "domains": {},
         "ips": {},
@@ -301,6 +364,28 @@ def main() -> int:
                 item["virustotal"] = vt_ip(ip, vt_api, cfg.timeout)
             except Exception as exc:
                 item["virustotal"] = {"error": str(exc)}
+            if cfg.vt_ip_analyse:
+                try:
+                    item["virustotal_analyse"] = vt_ip_analyse(ip, vt_api, cfg.timeout)
+                except Exception as exc:
+                    item["virustotal_analyse"] = {"error": str(exc)}
+            if cfg.vt_ip_relationships and (":" not in ip or cfg.vt_ip_relationship_include_ipv6):
+                rels: dict[str, dict] = {}
+                for rel in cfg.vt_ip_relationships:
+                    try:
+                        if cfg.vt_ip_relationship_mode == "objects":
+                            rels[rel] = vt_ip_related_objects(ip, rel, vt_api, cfg.timeout, limit=cfg.vt_ip_relationship_limit)
+                        else:
+                            rels[rel] = vt_ip_related_descriptors(ip, rel, vt_api, cfg.timeout, limit=cfg.vt_ip_relationship_limit)
+                    except Exception as exc:
+                        rels[rel] = {"error": str(exc)}
+                    if cfg.sleep_s:
+                        time.sleep(cfg.sleep_s)
+                item["virustotal_relationships"] = {
+                    "mode": cfg.vt_ip_relationship_mode,
+                    "limit": cfg.vt_ip_relationship_limit,
+                    "relationships": rels,
+                }
         if cfg.abuseipdb and abuse_api:
             try:
                 item["abuseipdb"] = abuseipdb_check(ip, abuse_api, cfg.timeout)
@@ -358,8 +443,11 @@ def main() -> int:
     lines.append(f"- Targets: `{targets_path}`\n")
 
     lines.append("## Integrations\n")
-    for k, enabled in results["integrations"].items():
-        lines.append(f"- {k}: {'enabled' if enabled else 'disabled'}")
+    for k, v in results["integrations"].items():
+        if isinstance(v, bool):
+            lines.append(f"- {k}: {'enabled' if v else 'disabled'}")
+        else:
+            lines.append(f"- {k}: {md_line(str(v))}")
     lines.append("")
 
     def vt_stats(obj: dict) -> str:
@@ -411,6 +499,34 @@ def main() -> int:
                 s = vt_stats(vt)
                 if s:
                     lines.append(f"- {s}")
+        vta = item.get("virustotal_analyse")
+        if isinstance(vta, dict):
+            if "error" in vta:
+                lines.append(f"- VT analyse: error: {md_line(str(vta.get('error')))}")
+            else:
+                aid = (vta.get("data") or {}).get("id") if isinstance(vta.get("data"), dict) else None
+                if aid:
+                    lines.append(f"- VT analyse id: {md_line(str(aid))}")
+        vtr = item.get("virustotal_relationships")
+        if isinstance(vtr, dict):
+            mode = vtr.get("mode")
+            limit = vtr.get("limit")
+            rels = vtr.get("relationships") if isinstance(vtr.get("relationships"), dict) else {}
+            parts: list[str] = []
+            errors: list[str] = []
+            for rel_name, rel_obj in sorted(rels.items()):
+                if isinstance(rel_obj, dict) and "error" in rel_obj:
+                    errors.append(f"{rel_name}=error")
+                    continue
+                data = rel_obj.get("data") if isinstance(rel_obj, dict) else None
+                if isinstance(data, list):
+                    parts.append(f"{rel_name}={len(data)}")
+                else:
+                    parts.append(f"{rel_name}=0")
+            if parts:
+                lines.append(f"- VT relationships ({mode}, limit={limit}): " + ", ".join(parts))
+            if errors:
+                lines.append(f"- VT relationships errors: " + ", ".join(errors))
         ab = item.get("abuseipdb")
         if isinstance(ab, dict):
             if "error" in ab:

@@ -95,6 +95,8 @@ fi
 # Tool paths
 ILEAPP_DIR="$ROOT_DIR/iLeap/iLEAPP"
 XLEAPP_BIN="$TOOLS_DIR/xleapp_311/.venv/bin/xleapp"
+XLEAPP_VENV_PY="$TOOLS_DIR/xleapp_311/.venv/bin/python"
+XLEAPP_PLUGIN_PKG="${XLEAPP_PLUGIN_PKG:-xleapp-ios}"
 MACAPT_BIN="$TOOLS_DIR/mac_apt/.venv/bin/python"
 MACAPT_SCRIPT="$TOOLS_DIR/mac_apt-master/mac_apt.py"
 MACAPT_TIMELINE="$TOOLS_DIR/macapt_timeline.py"
@@ -242,6 +244,191 @@ latest_dir() {
   ls -1dt $glob 2>/dev/null | head -1
 }
 
+xleapp_plugin_count() {
+  if [[ ! -x "$XLEAPP_VENV_PY" ]]; then
+    echo "0"
+    return
+  fi
+  "$XLEAPP_VENV_PY" - <<'PY'
+import importlib.metadata as m
+try:
+    eps = m.entry_points()
+    if hasattr(eps, "select"):
+        group = eps.select(group="xleapp.plugins")
+    else:
+        group = eps.get("xleapp.plugins", [])
+    print(len(list(group)))
+except Exception:
+    print(0)
+PY
+}
+
+ensure_xleapp_plugins() {
+  local count
+  count=$(xleapp_plugin_count)
+  if [[ "$count" -ge 1 ]]; then
+    return 0
+  fi
+
+  print_header "xLEAPP plugins missing - installing $XLEAPP_PLUGIN_PKG"
+  if [[ ! -x "$XLEAPP_VENV_PY" ]]; then
+    echo "Missing xLEAPP python env: $XLEAPP_VENV_PY"
+    return 1
+  fi
+
+  "$XLEAPP_VENV_PY" -m pip install --upgrade "$XLEAPP_PLUGIN_PKG" || {
+    echo "Failed to install xLEAPP plugin package: $XLEAPP_PLUGIN_PKG"
+    return 1
+  }
+
+  count=$(xleapp_plugin_count)
+  if [[ "$count" -lt 1 ]]; then
+    echo "xLEAPP plugin install did not register entry points."
+    return 1
+  fi
+  echo "xLEAPP plugins ready (count=$count)"
+}
+
+ensure_xleapp_parser_shim() {
+  if [[ ! -x "$XLEAPP_VENV_PY" ]]; then
+    return 0
+  fi
+  "$XLEAPP_VENV_PY" - <<'PY' || true
+import importlib.util
+from pathlib import Path
+import sys
+
+try:
+    import astc_decomp  # noqa: F401
+    print("xLEAPP ASTC parser is available.")
+    raise SystemExit(0)
+except Exception:
+    pass
+
+spec = importlib.util.find_spec("xleapp_ios.helpers.parsers")
+if not spec or not spec.origin:
+    print("xLEAPP parser package not found; skipping ASTC shim.")
+    raise SystemExit(0)
+
+target = Path(spec.origin)
+content = target.read_text(encoding="utf-8")
+if "GENESIS_ASTC_FALLBACK" in content:
+    print("xLEAPP ASTC fallback already installed.")
+    raise SystemExit(0)
+
+shim = """# GENESIS_ASTC_FALLBACK
+import types
+
+# import the protobuf-decoder module
+import blackboxprotobuf as pbparser
+
+# import the ccl parser
+import xleapp_ios.helpers.parsers.ccl.ccl_bplist as cclparser
+
+# import the ktx parser (optional dependency on astc_decomp)
+try:
+    import xleapp_ios.helpers.parsers.ktx.ios_ktx2png as ktxparser
+except Exception:
+    class _MissingKTXReader:
+        def __init__(self):
+            self.error_message = (
+                "KTX parser unavailable (missing optional dependency: astc_decomp)"
+            )
+
+        def validate_header(self, _f):
+            return False
+
+        def get_uncompressed_texture_data(self, _f):
+            raise ValueError(self.error_message)
+
+    class _MissingLibLzfse:
+        class error(Exception):
+            pass
+
+    ktxparser = types.SimpleNamespace(
+        KTX_reader=_MissingKTXReader,
+        liblzfse=_MissingLibLzfse(),
+    )
+"""
+target.write_text(shim, encoding="utf-8")
+print(f"Installed xLEAPP ASTC fallback shim: {target}")
+PY
+}
+
+ensure_xleapp_scandir_shim() {
+  if [[ ! -x "$XLEAPP_VENV_PY" ]]; then
+    return 0
+  fi
+  "$XLEAPP_VENV_PY" - <<'PY' || true
+import importlib.util
+from pathlib import Path
+
+spec = importlib.util.find_spec("xleapp.helpers.search")
+if not spec or not spec.origin:
+    print("xLEAPP search module not found; skipping scandir shim.")
+    raise SystemExit(0)
+
+target = Path(spec.origin)
+content = target.read_text(encoding="utf-8")
+if "GENESIS_SKIP_SCANDIR_ERRORS" in content:
+    print("xLEAPP scandir fallback already installed.")
+    raise SystemExit(0)
+
+old_block = """def build_files_list(self, folder):
+        subfolders, files = [], []
+
+        for item in os.scandir(folder):
+            if item.is_dir():
+                subfolders.append(item.path)
+            if item.is_file():
+                files.append(item.path)
+
+        for folder in list(subfolders):
+            sf, items = self.build_files_list(folder)
+            subfolders.extend(sf)
+            files.extend(items)
+
+        return subfolders, files
+"""
+
+new_block = """def build_files_list(self, folder):
+        # GENESIS_SKIP_SCANDIR_ERRORS
+        subfolders, files = [], []
+
+        try:
+            iterator = os.scandir(folder)
+        except OSError as ex:
+            logger_log.warning(f"Skipping folder due to scan error: {folder} ({ex})")
+            return subfolders, files
+
+        with iterator:
+            for item in iterator:
+                try:
+                    if item.is_dir(follow_symlinks=False):
+                        subfolders.append(item.path)
+                    if item.is_file(follow_symlinks=False):
+                        files.append(item.path)
+                except OSError as ex:
+                    logger_log.debug(f"Skipping item due to stat error: {item.path} ({ex})")
+
+        for child in list(subfolders):
+            sf, items = self.build_files_list(child)
+            subfolders.extend(sf)
+            files.extend(items)
+
+        return subfolders, files
+"""
+
+if old_block not in content:
+    print("Could not patch xLEAPP search walker automatically; leaving as-is.")
+    raise SystemExit(0)
+
+updated = content.replace(old_block, new_block, 1)
+target.write_text(updated, encoding="utf-8")
+print(f"Installed xLEAPP scandir fallback shim: {target}")
+PY
+}
+
 run_macapt_profile() {
   local user_label="$1"
   local user_path="$2"
@@ -329,6 +516,9 @@ run_xleapp_core() {
   local input_path="$2"
 
   check_exists "$XLEAPP_BIN"
+  ensure_xleapp_plugins
+  ensure_xleapp_parser_shim
+  ensure_xleapp_scandir_shim
 
   if [[ ! -e "$input_path" ]]; then
     print_header "xLEAPP input missing"

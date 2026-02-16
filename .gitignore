@@ -17,6 +17,7 @@ __pycache__/
 /forensics_out/
 /inputs/
 /last_output_*.txt
+/last_osint_*.txt
 /genesis/STOP
 
 # Local venvs

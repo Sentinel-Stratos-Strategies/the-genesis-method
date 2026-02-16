@@ -20,6 +20,7 @@ Main launcher:
 - Fam base output: `/Users/fam/forensics_out`
 - House report folder: `/Users/House/EVIDENCE/house/_Report`
 - Fam report folder: `/Users/fam/forensics_out/fam/_Report`
+- OSINT output folder: `/Users/House/EVIDENCE/house/_OSINT`
 - Logs:
   - Launcher/web logs: `/Users/House/EVIDENCE/_logs`
   - GUI log: `/Users/House/EVIDENCE/_logs/gui_actions.log`
@@ -43,7 +44,13 @@ Use this sequence when you want complete, defensible output:
 ./run_forensics.sh --choice 93
 ```
 
-4. Open the newest consolidated outputs:
+4. Optional: generate OSINT targets + enrichment report:
+```bash
+./run_forensics.sh --choice 94   # build targets (limited + noise-filtered)
+./run_forensics.sh --choice 96   # enrich + Sonar summaries
+```
+
+5. Open the newest consolidated outputs:
 ```bash
 open "$(ls -1dt /Users/House/EVIDENCE/house/_Report/genesis_analyst_*.md | head -1)"
 open "$(ls -1dt /Users/House/EVIDENCE/house/_Report/genesis_inventory_*.csv | head -1)"
@@ -65,7 +72,16 @@ cd /Users/house/genesis
 ./run_forensics.sh --choice 93
 ```
 
-### C) GUI / WebUI launch
+### C) Full run + OSINT enrichment (recommended)
+```bash
+cd /Users/house/genesis
+./run_forensics.sh --choice 12
+./run_forensics.sh --choice 32
+./run_forensics.sh --choice 93
+./run_forensics.sh --choice 98
+```
+
+### D) GUI / WebUI launch
 ```bash
 cd /Users/house/genesis
 ./run_forensics.sh --choice 91   # GUI
@@ -119,6 +135,8 @@ python3 /Users/house/genesis/tools/identifiers_scan.py \
 - `OPENAI_API_KEY` for analyst synthesis
 - `GENESIS_MODEL` (default from script/env)
 - `GENESIS_MODEL_FALLBACKS` (comma-separated)
+- `GENESIS_PPLX_ENV_FILE` path to a `KEY=value` env file containing Perplexity/Sonar + OSINT keys
+  - default: `/Users/house/Tools/pplx/config/perplexity_api.env`
 - `OUT_DIR_HOUSE` to override house output base (default is `/Users/House/EVIDENCE`)
 - `OUT_DIR_FAM` to override fam output base
 - `GENESIS_FAM_ROOT` to control fam root detection

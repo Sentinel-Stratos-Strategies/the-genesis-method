@@ -7,6 +7,9 @@ PY_ILEAPP="${PY_ILEAPP:-$ROOT_DIR/iLeap/iLEAPP/.venv/bin/python}"
 
 # Load optional local env so GUI/WebUI-launched runs can still read API keys.
 ENV_FILE="${GENESIS_ENV_FILE:-$ROOT_DIR/.env}"
+PPLX_ENV_DEFAULT="/Users/house/Tools/pplx/config/perplexity_api.env"
+# Optional Perplexity/Sonar + OSINT keys env (KEY=value). Not sourced automatically; passed to tools that can read it.
+GENESIS_PPLX_ENV_FILE="${GENESIS_PPLX_ENV_FILE:-$PPLX_ENV_DEFAULT}"
 PRESET_OPENAI_API_KEY="${OPENAI_API_KEY:-}"
 PRESET_GENESIS_MODEL="${GENESIS_MODEL:-}"
 is_placeholder_secret() {
@@ -49,6 +52,8 @@ OUT_DIR_FAM="${OUT_DIR_FAM:-$FAM_ROOT_BASE/forensics_out}"
 LOG_DIR="$OUT_DIR_HOUSE/_logs"
 LAST_OUTPUT_HOUSE="$ROOT_DIR/last_output_house.txt"
 LAST_OUTPUT_FAM="$ROOT_DIR/last_output_fam.txt"
+LAST_OSINT_TARGETS="$ROOT_DIR/last_osint_targets.txt"
+LAST_OSINT_OUT="$ROOT_DIR/last_osint_out.txt"
 
 HOUSE_USER_PATH="/Users/house"
 FAM_USER_PATH="/Users/fam"
@@ -118,6 +123,10 @@ MERGE_TIMELINE_SCRIPT="$TOOLS_DIR/merge_timelines.py"
 REPORT_SCRIPT="$TOOLS_DIR/build_report.py"
 PLASO_SCRIPT="$TOOLS_DIR/plaso_run.sh"
 TIMESKETCH_SCRIPT="$TOOLS_DIR/timesketch_start.sh"
+OSINT_TARGETS_SCRIPT="$TOOLS_DIR/osint_targets.py"
+OSINT_PIPELINE_SCRIPT="$TOOLS_DIR/osint_pipeline.py"
+DARKWEB_COUNTS_SCRIPT="$TOOLS_DIR/darkweb_counts.py"
+PPLX_TARGETS_FILE_DEFAULT="/Users/house/Tools/pplx/tools/targets.txt"
 
 # Profiles
 ILEAPP_PROFILE="$PROFILES_DIR/ileapp_social_calls_snapchat.ilprofile"
@@ -231,10 +240,16 @@ Fam Section (/Users/fam):
   40) Genesis Analyst (OpenAI) (fam)
 
 Common:
+  89) Dark web monitor (counts only) (Apify)
   90) Start Web UI (local)
   91) Start GUI (local)
   92) Start Timesketch (docker)
   93) Genesis Analyst (house + fam consolidated)
+  94) Build OSINT targets (Genesis -> PPLX targets)
+  95) Run OSINT enrichment (VT/AbuseIPDB/Hunter)
+  96) Run OSINT enrichment + Sonar summaries
+  97) Open latest OSINT report
+  98) Full OSINT (targets + enrichment + Sonar)
   99) Quit
 MENU
 }
@@ -631,6 +646,124 @@ generate_report() {
   open "$out_base/$user_label/_Report" >/dev/null 2>&1 || true
 }
 
+build_osint_targets() {
+  check_exists "$OSINT_TARGETS_SCRIPT"
+
+  local stamp
+  stamp=$(date +"%Y%m%d_%H%M%S")
+
+  local out_dir="$OUT_DIR_HOUSE/house/_OSINT"
+  local out_file="$out_dir/targets_${stamp}.txt"
+  mkdir -p "$out_dir"
+
+  print_header "Build OSINT targets (Genesis inventory)"
+  echo "Output: $out_file"
+
+  # Merge into PPLX targets file (block-replaced) so you can keep using the pplx toolchain too.
+  local merge_into="$PPLX_TARGETS_FILE_DEFAULT"
+  "$PY_MAIN" "$OSINT_TARGETS_SCRIPT" \
+    --out-dir-house "$OUT_DIR_HOUSE" \
+    --out-file "$out_file" \
+    --merge-into "$merge_into"
+
+  printf "%s\n" "$out_file" > "$LAST_OSINT_TARGETS" || true
+  echo "Wrote: $out_file"
+  echo "Merged into: $merge_into"
+  open "$out_dir" >/dev/null 2>&1 || true
+}
+
+open_latest_osint() {
+  local out_dir="$OUT_DIR_HOUSE/house/_OSINT"
+  local latest
+  latest=$(latest_dir "$out_dir/osint_*/osint_report.md")
+  if [[ -z "$latest" ]]; then
+    echo "No OSINT report found in $out_dir"
+    return 1
+  fi
+  open "$latest" >/dev/null 2>&1 || true
+}
+
+run_osint_pipeline() {
+  local with_sonar="${1:-0}"
+
+  check_exists "$OSINT_PIPELINE_SCRIPT"
+
+  local targets_path=""
+  if [[ -f "$LAST_OSINT_TARGETS" ]]; then
+    targets_path="$(cat "$LAST_OSINT_TARGETS" 2>/dev/null || true)"
+  fi
+  if [[ -z "$targets_path" || ! -f "$targets_path" ]]; then
+    targets_path="$(latest_dir "$OUT_DIR_HOUSE/house/_OSINT/targets_*.txt")"
+  fi
+  if [[ -z "$targets_path" || ! -f "$targets_path" ]]; then
+    echo "No OSINT targets found. Run 'Build OSINT targets' first."
+    return 1
+  fi
+
+  local stamp
+  stamp=$(date +"%Y%m%d_%H%M%S")
+  local out_dir="$OUT_DIR_HOUSE/house/_OSINT/osint_${stamp}"
+  mkdir -p "$out_dir"
+
+  print_header "Genesis OSINT enrichment"
+  echo "Targets: $targets_path"
+  echo "Output:  $out_dir"
+  if [[ "$with_sonar" == "1" ]]; then
+    echo "Sonar:   enabled (model from $GENESIS_PPLX_ENV_FILE)"
+  else
+    echo "Sonar:   disabled"
+  fi
+
+  local args=(--targets-file "$targets_path" --out-dir "$out_dir" --pplx-env-file "$GENESIS_PPLX_ENV_FILE")
+  if [[ "$with_sonar" == "1" ]]; then
+    args+=(--with-sonar)
+  fi
+
+  "$PY_MAIN" "$OSINT_PIPELINE_SCRIPT" "${args[@]}" | tee "$LOG_DIR/osint_${stamp}.log"
+  printf "%s\n" "$out_dir" > "$LAST_OSINT_OUT" || true
+
+  open_report_if_exists "$out_dir/osint_report.md"
+}
+
+run_darkweb_counts() {
+  check_exists "$DARKWEB_COUNTS_SCRIPT"
+
+  local targets_path=""
+  if [[ -f "$LAST_OSINT_TARGETS" ]]; then
+    targets_path="$(cat "$LAST_OSINT_TARGETS" 2>/dev/null || true)"
+  fi
+  if [[ -z "$targets_path" || ! -f "$targets_path" ]]; then
+    targets_path="$(latest_dir "$OUT_DIR_HOUSE/house/_OSINT/targets_*.txt")"
+  fi
+  if [[ -z "$targets_path" || ! -f "$targets_path" ]]; then
+    echo "No OSINT targets found. Run 'Build OSINT targets' first."
+    return 1
+  fi
+
+  local stamp
+  stamp=$(date +"%Y%m%d_%H%M%S")
+  local out_dir="$OUT_DIR_HOUSE/house/_OSINT/darkweb_${stamp}"
+  mkdir -p "$out_dir"
+
+  print_header "Dark web keyword monitor (counts only)"
+  echo "Targets: $targets_path"
+  echo "Output:  $out_dir"
+
+  "$PY_MAIN" "$DARKWEB_COUNTS_SCRIPT" \
+    --targets-file "$targets_path" \
+    --out-dir "$out_dir" \
+    --env-file "$GENESIS_PPLX_ENV_FILE" \
+    | tee "$LOG_DIR/darkweb_${stamp}.log"
+
+  open_report_if_exists "$out_dir/darkweb_counts.md"
+}
+
+full_osint_run() {
+  build_osint_targets
+  run_osint_pipeline 1
+  open_latest_osint || true
+}
+
 run_full_with_report() {
   local user_label="$1"
   local user_path="$2"
@@ -901,10 +1034,16 @@ run_menu_choice() {
     39) run_plaso "fam" ;;
     40) run_genesis_agent "fam" ;;
 
+    89) run_darkweb_counts ;;
     90) start_webui ;;
     91) start_gui ;;
     92) start_timesketch ;;
     93) run_genesis_agent_combined ;;
+    94) build_osint_targets ;;
+    95) run_osint_pipeline 0 ;;
+    96) run_osint_pipeline 1 ;;
+    97) open_latest_osint ;;
+    98) full_osint_run ;;
     99) exit 0 ;;
     *) echo "Invalid option: $choice"; return 1 ;;
   esac
@@ -922,11 +1061,18 @@ main() {
   echo "iLEAPP Python: $PY_ILEAPP"
   echo "Output base (house): $OUT_DIR_HOUSE"
   echo "Output base (fam): $OUT_DIR_FAM"
+  echo "PPLX env file: $GENESIS_PPLX_ENV_FILE"
   if [[ -f "$LAST_OUTPUT_HOUSE" ]]; then
     echo "Last output (house): $(cat "$LAST_OUTPUT_HOUSE")"
   fi
   if [[ -f "$LAST_OUTPUT_FAM" ]]; then
     echo "Last output (fam): $(cat "$LAST_OUTPUT_FAM")"
+  fi
+  if [[ -f "$LAST_OSINT_TARGETS" ]]; then
+    echo "Last OSINT targets: $(cat "$LAST_OSINT_TARGETS")"
+  fi
+  if [[ -f "$LAST_OSINT_OUT" ]]; then
+    echo "Last OSINT output: $(cat "$LAST_OSINT_OUT")"
   fi
   echo "House iOS input: $HOUSE_IOS_INPUT ($HOUSE_ILEAPP_TYPE)"
   echo "Fam iOS input: $FAM_IOS_INPUT ($FAM_ILEAPP_TYPE)"

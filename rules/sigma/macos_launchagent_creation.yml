@@ -1,0 +1,18 @@
+title: macOS LaunchAgent Creation
+id: sentinel-macos-launchagent-creation
+status: experimental
+logsource:
+  product: macos
+  service: filesystem
+  category: file_create
+level: medium
+detection:
+  selection:
+    keywords:
+      - "LaunchAgents"
+      - "com.apple.launchd"
+      - "RunAtLoad"
+  condition: selection
+fields:
+  - file.path
+  - process.command_line

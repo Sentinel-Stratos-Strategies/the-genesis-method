@@ -1,0 +1,260 @@
+{
+  "generated_at": "2026-02-15T21:31:57.131452+00:00",
+  "host": {
+    "hostname": "Houses-MacBook-Pro.local",
+    "sw_vers": {
+      "BuildVersion": "25D125",
+      "ProductName": "macOS",
+      "ProductVersion": "26.3"
+    },
+    "uname": "Darwin Houses-MacBook-Pro.local 25.3.0 Darwin Kernel Version 25.3.0: Wed Jan 28 20:54:22 PST 2026; root:xnu-12377.81.4~5/RELEASE_ARM64_T6030 arm64"
+  },
+  "mdm": {
+    "profiles_list_current_user": {
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "There are no configuration profiles installed for user 'house'"
+    },
+    "profiles_status_enrollment": {
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "Enrolled via DEP: No\nMDM enrollment: No"
+    }
+  },
+  "notes": [
+    "This report intentionally omits Apple IDs, phone numbers, iMessage handles, and message contents.",
+    "If you need account identifiers, use System Settings under each macOS user, or consult Apple/IT."
+  ],
+  "users": [
+    {
+      "artifacts": {
+        "accounts_db": {
+          "exists": true,
+          "path": "/Users/house/Library/Accounts/Accounts4.sqlite",
+          "readable": true,
+          "sha256": "516977504503df6d9d280543a7d39689116e1ec04a76c2d614d8b5033f9c517b",
+          "sqlite_summary": {
+            "account_type_counts": [
+              {
+                "account_type": "com.apple.account.iTunesStore",
+                "count": 3
+              },
+              {
+                "account_type": "com.apple.account.AppleIDAuthentication",
+                "count": 2
+              },
+              {
+                "account_type": "com.apple.account.CalDAV",
+                "count": 2
+              },
+              {
+                "account_type": "com.apple.account.IMAP",
+                "count": 2
+              },
+              {
+                "account_type": "com.apple.account.SMTP",
+                "count": 2
+              },
+              {
+                "account_type": "com.apple.account.idms",
+                "count": 2
+              },
+              {
+                "account_type": "com.apple.account.AppleAccount",
+                "count": 1
+              },
+              {
+                "account_type": "com.apple.account.CardDAV",
+                "count": 1
+              },
+              {
+                "account_type": "com.apple.account.CloudKit",
+                "count": 1
+              },
+              {
+                "account_type": "com.apple.account.DeviceLocator",
+                "count": 1
+              },
+              {
+                "account_type": "com.apple.account.FindMyFriends",
+                "count": 1
+              },
+              {
+                "account_type": "com.apple.account.GameCenter",
+                "count": 1
+              },
+              {
+                "account_type": "com.apple.account.Google",
+                "count": 1
+              },
+              {
+                "account_type": "com.apple.account.HolidayCalendar",
+                "count": 1
+              },
+              {
+                "account_type": "com.apple.account.IdentityServices",
+                "count": 1
+              },
+              {
+                "account_type": "com.apple.account.OnMyDevice",
+                "count": 1
+              },
+              {
+                "account_type": "com.apple.account.iTunesStore.sandbox",
+                "count": 1
+              }
+            ],
+            "counts": {
+              "ZACCOUNTTYPE_rows": 56,
+              "ZACCOUNT_rows": 24,
+              "ZAUTHORIZATION_rows": 0,
+              "ZCREDENTIALITEM_rows": 0
+            },
+            "tables_present": [
+              "ZACCESSOPTIONSKEY",
+              "ZACCOUNT",
+              "ZACCOUNTPROPERTY",
+              "ZACCOUNTTYPE",
+              "ZAUTHORIZATION",
+              "ZCREDENTIALITEM",
+              "ZDATACLASS",
+              "Z_1OWNINGACCOUNTTYPES",
+              "Z_2ENABLEDDATACLASSES",
+              "Z_2PROVISIONEDDATACLASSES",
+              "Z_4SUPPORTEDDATACLASSES",
+              "Z_4SYNCABLEDATACLASSES",
+              "Z_METADATA",
+              "Z_MODELCACHE",
+              "Z_PRIMARYKEY"
+            ],
+            "type": "accounts_db"
+          },
+          "stat": {
+            "gid": 20,
+            "mode_octal": "0o644",
+            "mtime": "2026-02-14T16:27:20.136107+00:00",
+            "size_bytes": 327680,
+            "uid": 501
+          }
+        },
+        "facetime_plist": {
+          "exists": true,
+          "path": "/Users/house/Library/Preferences/com.apple.FaceTime.plist",
+          "readable": true,
+          "sha256": "45757f1d81abc4c1acd9eb2597a0342509dc7398267fca0a69c8c034279a980a",
+          "stat": {
+            "gid": 20,
+            "mode_octal": "0o600",
+            "mtime": "2026-02-14T08:43:02.040992+00:00",
+            "size_bytes": 248,
+            "uid": 501
+          }
+        },
+        "ids_facetime_plist": {
+          "exists": true,
+          "path": "/Users/house/Library/Preferences/com.apple.imservice.ids.FaceTime.plist",
+          "readable": true,
+          "sha256": "923048803546f39e67d3aed80ef1ec7958e06158c5c4aa9ce89b8713288711e3",
+          "stat": {
+            "gid": 20,
+            "mode_octal": "0o600",
+            "mtime": "2026-02-14T08:37:18.530256+00:00",
+            "size_bytes": 164,
+            "uid": 501
+          }
+        },
+        "ids_imessage_plist": {
+          "exists": true,
+          "path": "/Users/house/Library/Preferences/com.apple.imservice.ids.iMessage.plist",
+          "readable": true,
+          "sha256": "d9238e52351003c84094ae55602b402099cf69288d6dd6560a4747162acb6e88",
+          "stat": {
+            "gid": 20,
+            "mode_octal": "0o600",
+            "mtime": "2026-02-14T08:37:48.734729+00:00",
+            "size_bytes": 82,
+            "uid": 501
+          }
+        },
+        "madrid_plist": {
+          "exists": true,
+          "path": "/Users/house/Library/Preferences/com.apple.madrid.plist",
+          "readable": true,
+          "sha256": "7b515959b9c6842f1f5668960291bc7d909159219fcfd910360ee34d75a55195",
+          "stat": {
+            "gid": 20,
+            "mode_octal": "0o600",
+            "mtime": "2026-02-15T18:23:11.306531+00:00",
+            "size_bytes": 4530,
+            "uid": 501
+          }
+        },
+        "messages_db": {
+          "exists": true,
+          "path": "/Users/house/Library/Messages/chat.db",
+          "readable": true,
+          "sha256": "0e23ac9771d80420addd0cc2173bd25afa41d0210a1fba266a63d29764f75442",
+          "sqlite_summary": {
+            "counts": {
+              "attachment_rows": 2716,
+              "chat_rows": 590,
+              "handle_rows": 750,
+              "message_rows": 32281
+            },
+            "tables_present": [
+              "_SqliteDatabaseProperties",
+              "attachment",
+              "chat",
+              "chat_handle_join",
+              "chat_lookup",
+              "chat_message_join",
+              "chat_recoverable_message_join",
+              "chat_service",
+              "deleted_messages",
+              "handle",
+              "kvtable",
+              "message",
+              "message_attachment_join",
+              "message_processing_task",
+              "persistent_tasks",
+              "recoverable_message_part",
+              "scheduled_messages_pending_cloudkit_delete",
+              "sqlite_sequence",
+              "sqlite_stat1",
+              "sync_chat_slice",
+              "sync_deleted_attachments",
+              "sync_deleted_chats",
+              "sync_deleted_messages",
+              "unsynced_removed_recoverable_messages"
+            ],
+            "type": "messages_db"
+          },
+          "stat": {
+            "gid": 20,
+            "mode_octal": "0o644",
+            "mtime": "2026-02-15T08:42:42.898822+00:00",
+            "size_bytes": 60502016,
+            "uid": 501
+          }
+        },
+        "mobileme_accounts_plist": {
+          "exists": true,
+          "path": "/Users/house/Library/Preferences/MobileMeAccounts.plist",
+          "readable": true,
+          "sha256": "670647dcce303762ac4bc24c62f0527a2a742d23179ae2fd8659cb3d080fce18",
+          "stat": {
+            "gid": 20,
+            "mode_octal": "0o600",
+            "mtime": "2026-02-14T17:37:58.325047+00:00",
+            "size_bytes": 7075,
+            "uid": 501
+          }
+        }
+      },
+      "generated_uid": "588F86D6-C0C8-459A-8F1A-64C5998C5880",
+      "home": "/Users/house",
+      "name": "house",
+      "uid": 501
+    }
+  ]
+}

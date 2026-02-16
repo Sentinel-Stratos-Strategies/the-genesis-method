@@ -1,0 +1,18 @@
+title: macOS TCC Database Access
+id: sentinel-macos-tcc-access
+status: experimental
+logsource:
+  product: macos
+  service: filesystem
+  category: file_access
+level: medium
+detection:
+  selection:
+    keywords:
+      - "TCC.db"
+      - "kTCCService"
+      - "SystemPolicy"
+  condition: selection
+fields:
+  - file.path
+  - process.command_line

@@ -1,0 +1,24 @@
+anytree
+biplist
+construct==2.10.70
+cryptography
+inflate64
+jsonlines
+kaitaistruct
+libewf-python
+libvmdk-python
+lz4
+nska_deserialize==1.5.1
+packaging
+pillow
+plistutils
+pybindgen==0.21.0
+pycryptodome
+pyliblzfse
+pytsk3==20230125
+pyyaml
+setuptools
+win32_setctime
+xattr; sys_platform != "win32"
+xlsxwriter
+other_dependencies/pyaff4-0.31.2-yk-20251206.zip

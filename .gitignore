@@ -1,0 +1,50 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.db
+*.sqlite
+*.log
+*.tmp
+*.cache
+.DS_Store
+.vscode/
+.idea/
+.env
+.env.*
+
+# Outputs and evidence
+/forensics_out/
+/inputs/
+/last_output_*.txt
+/genesis/STOP
+
+# Local venvs
+/.venv/
+/.venv*/
+/iLeap/**/.venv/
+/iLeap/**/.venv*/
+/tools/**/.venv/
+/tools/**/.venv*/
+**/.venv*/
+
+# Large binaries
+*.zip
+*.tar
+*.gz
+*.7z
+*.dmg
+*.iso
+
+# Reports
+/_logs/
+/_Report/
+
+# Runtime artifacts
+/_Timeline/
+/_Summary/
+/_YARA/
+/_Sigma/
+/_ClamAV/
+/_Enrichment/
+/_Plaso/

@@ -1,0 +1,208 @@
+THIS FILE IS LEGACY AND NOT IN USE, ALL NEW CHANGES ARE ALL TRACKED IN GITHUB RELEASE NOTES
+
+Updates in 20220614 (v1.5.0.dev):
+
++ Add CSV support for output (old CSV was TSV, also supported)
++ Add new plugins - TCC and XPROTECTDIAG by @mnrkbys
++ Add SafariTabs.db parsing
+
+! Fix an issue with Spotlight parsing (prop_type 8)
+! Fix a display issue with excel dates for utmpx plugin
+! Fix a display issue with excel dates for cfurul_cache plugin
+! Minor bugfix for fsevents and utmpx plugin
+
+Updates in 20210717 (v1.4.0):
+
++ Add parsing of Safari WebExtensions and AppExtensions plist
+
+Updates in 20210716 (v1.3.2):
+
+Many contributions from Minoru Kobayashi (@mnrkbys) in this release.
+
++ Improved parsing of AccountInfo key in com.apple.loginwindow.plist 
++ Added missing locations for Safari plists - AppExtensions & WebExtensions 
++ Add parsing of /Users/*/Library/Application Support/com.apple.backgroundtaskmanagementagent/backgrounditems.btm to AUTOSTART
++ Add new plugins UTMPX, FILESHARING, CFURL_CACHE
++ Add ChunkedDataWriter for plugins that need to write millions of rows (faster and memory efficient now)
+
+! Reading fsevents in the several millions now does not consume all your memory
+! Now reading fsevents from /System/Volumes/Data for all disks
+! Fix bugs in plugins - Safari, Wifi, BasicInfo, RecentItems
+
+Updates in 20210512 (v1.3.1):
+
++ Fixes small compilation issue in ios_apt.exe (no actual code changes) which caused some issues when the EXE was run
+
+Updates in 20210506 (v1.3):
+
++ New AXIOMZIP option to read Axiom created targeted collection (not full disk image)
+
+Updates in 20210506 (v1.2):
+
++ Support for Graykey extracted filesystem (only /private/var)
++ Add parsing of com.apple.wifi.known-networks.plist
++ Add parsing of wifi backup plist com.apple.airport.preferences.plist.backup
++ Add tab closed date to Safari LastSession output
+
+! Fixed another bug that prevented APFS decryption in some disks due to not checking UUIDs when searching for Volume Keybag
+! Fixed minor bug with Safari plugin for ios
+
+Updates in 20210210 (v1.1):
+
++ Add option for specifying password in file (-pf), because passwords on command line that have special chars like \ or ^ have problems
+
+! Fixed a bug that prevented APFS decryption in some disks
+! Skip reading deleted apfs blocks to prevent stale/bad data
+! Fixed a bug in iDeviceBackups plugin
+
+Updates in 20210210 (v1.0):
+
++ Code updated for Python 3.9, windows dep. libs compiled for 3.9
++ RECON (by Sumuri) created .sparseimage files are now supported
++ Add CloudTabs, BrowserState.db parsing to SAFARI
++ Fixes exported folder structure for idevicebackups
++ Show imsg alias (if used)
++ Better APFS parsing
+
+Updates in 20201228 (v0.9):
+
++ Introducing ios_apt - parses ios full disk images
++ ios_apt plugins - APPS, BASICINFO, FSEVENTS, INETACOUNTS, NETUSAGE, NETWORKING, SAFARI, SCREENTIME, SPOTLIGHT, TERMSESSIONS, WIFI
++ Support for ios 14 artifacts
++ Improved support for Big Sur (macOS 11) Sealed volumes
++ Python 3.8 compiled libraries for windows available
++ Adds full support for decrypting FileVault when HFS upgraded to APFS
++ Safari binarycookie parsing for Big Sur (new location)
++ Add views for Spotlight ios/user db output removing empty columns
++ Hex in ID col + reverse id col for ios spotlight
+
+! Optimization in file metadata lookup
+! Detect encrypted NOTES properly + query fixes
+! Fixed chrome Session parsing, fixed bad timestamps
+! Fix ExportedFiles db having double entries
+! Fix for file writing exception, add utf8 for log
+! Fix edge case apfs parsing symlink
+
+Updates in 20200917 (v0.7):
+
++ New Plugins - SAVEDSTATE, CHROME, ARD, SUDOLASTRUN, DOCUMENTREVISIONS
++ Support for Big Sur (macOS 11) Sealed volumes
++ Support for Big Sur changed/new artifact locations and ZSH sessions
++ Add .sh_history parsing for normal users
+
+! Add workaround for an issue with MOUNTED mode on Xways Forensics mounted disks
+! Fixes to deserializer and ccl_bplist (for edge cases on newer macOS)
+! Fixes to MOUNTEDMODE
+! BugFix - BGRA to RGBA for thumbnails on 10.15
+! Some encryption bugs squashed
+
+Updates in 20200529 (v0.6):
+
++ APFS encryption support added, encrypted volumes can be processed by providing password/recovery-key
++ FAST mode, which skips plugins IDEVICEBACKUPS, SPOTLIGHT, UNIFIEDLOGS
++ BASHSESSIONS is now TERMSESSIONS (it reads zsh history too)
++ Better HFS parsing, and reading of large files
++ Support for Maquisition created AFF4 images
++ Export_log is now an sqlite db instead of CSV file
++ FSEVENTS plugin is now a lot faster
++ Better exception handling, script should halt on Ctrl-C now
+
+! Bugfixes, improvements in other plugins - QUICKLOOK, IMESSAGE, COOKIES
+
+Updates in 20200426 (v0.5):
+
++ New Plugins - SCREENTIME, QUICKLOOK, TERMINALSTATE, APPLIST, COOKIES
++ Compatibility with macOS 10.15 separate System & Data volumes
++ Better disk space reporting for APFS & HFS
++ Added AFF4 support
++ FSEVENTS now works for iOS
++ BootVolume Spotlight parsing for Catalina
++ Add ssh known_hosts to RECENTITEMS
++ Add zsh history to bash session
++ Added column for recent_app in dockitems
+
+! Fixed ios Spotlight bug
+! Handling of * in format strings in UNIFIEDLOGS 
+
+Updates in 20190816 (v0.4.1):
+
++ RecentItems plugin now reads FileCreatedDates from APP.securebookmarks.plist
++ RecentItems plugin now gets Mounted dev/vol name from userglobalpref plist
++ RecentItems plugin now reads LastSaveFilePathBookmark
++ Better exception handling in some places
++ Now gracefully handles file open failure in MOUNTED mode (due to lacking permissions)
+
+! Fixed bugs in Plugins - Printjobs, iDeviceInfo, Wifi
+
+Updates in 20190720 (v0.4):
+
++ New plugins - FSEVENTS, SPOTLIGHT, MSOFICE, UNIFIEDLOGS, AUTOSTART, IDEVICEINFO
++ Added ability to process VMDK disk images
++ RecentItems now reads SFL2 files
++ API for reading XATTR on APFS & HFS
++ mac_apt_singleplugin is renamed to mac_apt_artifact_only
++ Lots of changes under the hood for APFS handling, 
+  = enumerating files/folders is now several times faster
+  = encrypted volumes are detected properly now
+  = exporting or opening very large files is now supported
+  = now handles dirty APFS volume mounting using checkpoint processing
+  = disk processing is more robust now, less crash prone now!
+
+! Fixed Bash sessions bug, not retrieving data from .historynew files
+! Fixed a bug with MOUNTED mode
+! Basicinfo now gets vol info on vol-only images
+! Minor bug fixes to several plugins
+
+Updates in 20180606 (v0.3):
+
++ Added FrequentlyVisitedSitesCache, NSNavLastRootDirectory & RecentlyClosedTabls.plist parsing to SAFARI plugin
++ Added GotoFieldHistory, RecentMoveCopyDestinations, BulkRename settings to RECENTITEMS plugin
++ Added detection of encrypted volumes and user friendly message
++ New plugins -iMessage, iNetAccounts, Quarantine, NetUsage
++ Add support for High Sierra's notifications (db2)
++ More documentation on wiki!
++ Native HFS parser made default, processing is much faster!
+
+! Fixed Bash sessions exception on some binary UTF8 strings
+! Fixed bugs with MOUNTED option, added more support for mounted disk parsing
+! Fixed Notes bugs - 'table missing' bug for High Sierra, long notes related bug
+! Excel sheet with > 1 million records is now handled correctly
+! Several minor fixes
+
+Updates in 20171230 (v0.2.6):
+
++ Instructions for macOS installation are now on the wiki
++ mac_apt modules listed and processed in same order on all platforms now
+
+! This release is only to fix a bug with the Notes plugin that caused unpredictable behavior on OSX as the artifact source file was extracted but deleted before or during processing
+
+Updates in 20171225 (v0.2.5):
+
++ Ships with compiled windows executables (no need to install python)!
++ New plugin - Notes
++ APFS volumes database now has UUID in its name, so if you re-run the script in the same folder, it will not parse the filesystem all over again.
+
+! Fixes a minor bug with mac_apt_singleplugin that prevented it from running in last release
+PRINTJOBS plugin can be used with singleplugin mode now
+! -ve dates in RECENTITEMS are parsed correctly now
+
+Updates in 20171207 (v0.2):
+
++ APFS support added, we can parse APFS containers and volumes now
++ New plugin -  PrintJobs
++ Retrieves deleted users
++ Retrieves default user's password if 'autologon' was enabled
++ Sidebarlists plist is now parsed & Alias v3 parsing added
++ Vol created dates are now extracted from FXDesktopVolumePositions
++ Better ALIAS v2 parsing, new Info column in RecentItems output
+
+! Bug fixed - now binary BLOBs write correctly to sqlite db
+! Minor fixes in RecentItems and common.py
+
+Updates in Version 20170902(v0.12):
+
++ New plugin BASHSESSIONS that parses bash_sessions and bash_history
++ Added processing of 'finder' plist to RECENTITEMS plugin
++ More user data is parsed (account policy data such as creation date, last password set date, password hint,..)
+
+! Minor bug fixes

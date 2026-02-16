@@ -1,0 +1,17 @@
+title: macOS Suspicious Script Execution
+id: sentinel-macos-suspicious-script-exec
+status: experimental
+logsource:
+  product: macos
+  service: process_creation
+level: medium
+detection:
+  selection:
+    keywords:
+      - "osascript -e"
+      - "python -c"
+      - "bash -c"
+      - "curl http"
+  condition: selection
+fields:
+  - process.command_line

@@ -1,0 +1,29 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="40%" r="70%">
+      <stop offset="0%" stop-color="#1FC2D6" stop-opacity="0.9"/>
+      <stop offset="55%" stop-color="#751E99" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#110629" stop-opacity="1"/>
+    </radialGradient>
+    <linearGradient id="ring" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1FC2D6"/>
+      <stop offset="50%" stop-color="#751E99"/>
+      <stop offset="100%" stop-color="#F57442"/>
+    </linearGradient>
+    <linearGradient id="sgrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1FC2D6"/>
+      <stop offset="45%" stop-color="#F57442"/>
+      <stop offset="100%" stop-color="#751E99"/>
+    </linearGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <circle cx="256" cy="256" r="232" fill="url(#bg)"/>
+  <circle cx="256" cy="256" r="220" fill="none" stroke="url(#ring)" stroke-width="18" filter="url(#soft)"/>
+  <path d="M155 210c0-46 46-78 101-78h85c33 0 60 27 60 60 0 33-27 60-60 60h-95c-17 0-30 13-30 30s13 30 30 30h92c46 0 84 38 84 84 0 46-38 84-84 84h-90c-50 0-96-33-96-82" fill="none" stroke="url(#sgrad)" stroke-width="32" stroke-linecap="round" stroke-linejoin="round" filter="url(#soft)"/>
+</svg>

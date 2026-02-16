@@ -1,0 +1,13 @@
+{"leapp":"ileapp","format_version":1,"plugins":[
+  "facebookMessengerCalls",
+  "facebookMessengerChats",
+  "facebookMessengerSecretConversations",
+  "facebookMessengerConversationGroups",
+  "facebookMessengerContacts",
+  "instagramThreads",
+  "snapchatAppFiles",
+  "whatsAppCallHistory",
+  "viber_call_remnants",
+  "teamsCalls",
+  "googleduo"
+]}

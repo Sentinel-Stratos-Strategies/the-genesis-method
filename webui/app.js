@@ -1,5 +1,22 @@
-async function runChoice(choice) {
-  const resp = await fetch(`/api/run/${choice}`, { method: "POST" });
+let plugins = [];
+
+const $ = (id) => document.getElementById(id);
+
+function runPayload() {
+  return {
+    inputDir: $("input-dir").value.trim(),
+    outputName: $("output-name").value.trim(),
+    outputBase: $("output-base").value.trim(),
+    pipeline: $("pipeline-choice").value,
+  };
+}
+
+async function postJson(url, payload) {
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
   return resp.json();
 }
 
@@ -8,60 +25,195 @@ async function fetchStatus() {
   return resp.json();
 }
 
+async function fetchPlugins() {
+  const resp = await fetch("/api/plugins");
+  return resp.json();
+}
+
+async function fetchConfig() {
+  const resp = await fetch("/api/config");
+  return resp.json();
+}
+
+async function fetchLlmConfig() {
+  const resp = await fetch("/api/llm/config");
+  return resp.json();
+}
+
 function setStatus(text, meta, running) {
-  const statusEl = document.getElementById("run-status");
-  const metaEl = document.getElementById("run-meta");
-  statusEl.textContent = text;
-  statusEl.classList.toggle("running", !!running);
-  metaEl.textContent = meta;
+  $("run-status").textContent = text;
+  $("run-status").classList.toggle("running", !!running);
+  $("run-meta").textContent = meta;
 }
 
 async function refreshStatus() {
   try {
     const s = await fetchStatus();
     if (s.running) {
-      setStatus(
-        `Running choice ${s.choice}`,
-        `PID ${s.pid} | started ${s.started_at}`,
-        true
-      );
-    } else if (s.last_choice) {
-      const rc = s.last_rc === 0 ? "success" : `failed (rc=${s.last_rc})`;
-      setStatus(
-        `Last run: ${rc}`,
-        `choice ${s.last_choice} | finished ${s.last_finished_at || "recently"}`,
-        false
-      );
-    } else {
-      setStatus("Ready", "No active run.", false);
+      setStatus(`Running ${s.choice}`, `PID ${s.pid} | started ${s.started_at}`, true);
+      return;
     }
+    if (s.last_choice) {
+      const rc = s.last_rc === 0 ? "success" : `failed (rc=${s.last_rc})`;
+      setStatus(`Last run: ${rc}`, `${s.last_choice} | finished ${s.last_finished_at || "recently"}`, false);
+      return;
+    }
+    setStatus("Ready", "No active run.", false);
   } catch (_err) {
     setStatus("Status unavailable", "WebUI API not responding.", false);
   }
 }
 
-function bindActions() {
-  const runButtons = document.querySelectorAll(".tile.run");
-  runButtons.forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const choice = btn.dataset.choice;
-      if (!choice) return;
-      setStatus(`Starting choice ${choice}...`, "Submitting action to backend.", true);
-      try {
-        const out = await runChoice(choice);
-        if (out.ok) {
-          setStatus(`Running choice ${choice}`, out.message, true);
-        } else {
-          setStatus("Run blocked", out.message || "Unknown error.", false);
-        }
-      } catch (_err) {
-        setStatus("Run error", "Could not reach backend.", false);
-      }
-      await refreshStatus();
+function pluginLabel(plugin) {
+  return `${plugin.category} - ${plugin.name}`;
+}
+
+function renderPlugins() {
+  const grid = $("module-grid");
+  const select = $("module-choice");
+  grid.innerHTML = "";
+  select.innerHTML = "";
+
+  const sorted = [...plugins].sort((a, b) => pluginLabel(a).localeCompare(pluginLabel(b)));
+  $("module-count").textContent = `${sorted.length} modules indexed`;
+
+  sorted.forEach((plugin) => {
+    const option = document.createElement("option");
+    option.value = plugin.id;
+    option.textContent = pluginLabel(plugin);
+    select.appendChild(option);
+
+    const button = document.createElement("button");
+    button.className = "module-card";
+    button.type = "button";
+    button.innerHTML = `
+      <span>${plugin.category}</span>
+      <strong>${plugin.name}</strong>
+      <small>${plugin.description || "Registered module"}</small>
+    `;
+    button.addEventListener("click", () => {
+      select.value = plugin.id;
     });
+    grid.appendChild(button);
   });
 }
 
-bindActions();
-refreshStatus();
-setInterval(refreshStatus, 3000);
+async function loadPlugins() {
+  plugins = await fetchPlugins();
+  renderPlugins();
+}
+
+async function loadConfig() {
+  const cfg = await fetchConfig();
+  $("input-dir").value =
+    cfg.defaultInputDir || cfg.evidenceInputRoot || "/Volumes/Stratos_Tools/GENESIS_EVIDENCE_INPUT/staging";
+  $("output-base").value =
+    cfg.defaultOutputBase || cfg.evidenceOutputRoot || "/Volumes/SENTINEL/GENESIS_EVIDENCE_OUTPUT/runs";
+  $("output-name").value = `genesis_case_${new Date().toISOString().slice(0, 19).replaceAll(":", "").replace("T", "_")}`;
+}
+
+function llmPayload() {
+  return {
+    provider: $("llm-provider").value,
+    model: $("llm-model").value.trim(),
+    base_url: $("llm-base-url").value.trim(),
+    api_key_env: $("llm-api-env").value.trim(),
+    api_key: $("llm-api-key").value.trim(),
+    temperature: Number($("llm-temperature").value || "0.1"),
+    memory_roots: $("llm-memory-roots").value.split(",").map((v) => v.trim()).filter(Boolean),
+    runtime: {
+      runtime_script: $("llm-runtime-script").value.trim(),
+    },
+  };
+}
+
+function renderLlmStatus(status) {
+  const cfg = status.config || {};
+  const runtime = cfg.runtime || {};
+  const training = cfg.training || {};
+  const paths = status.paths || {};
+  const secret = status.secret || {};
+  const rt = status.runtime || {};
+
+  $("llm-status").textContent = rt.reachable
+    ? `Local runtime reachable (${(rt.models || []).length} models)`
+    : `Runtime not reachable${rt.error ? `: ${rt.error}` : ""}`;
+  $("llm-provider").value = cfg.provider || "ollama";
+  $("llm-model").value = cfg.model || "mistral-nemo:latest";
+  $("llm-base-url").value = cfg.base_url || "http://127.0.0.1:11436";
+  $("llm-api-env").value = cfg.api_key_env || "GENESIS_LLM_API_KEY";
+  $("llm-temperature").value = cfg.temperature ?? 0.1;
+  $("llm-runtime-script").value = runtime.runtime_script || "/Volumes/Stratos_Tools/projects/The_Genesis_Method/tools/ai/run_genesis_ollama_runtime.sh";
+  $("llm-memory-roots").value = (cfg.memory_roots || []).join(", ");
+  $("llm-api-key").value = "";
+
+  $("llm-runtime-detail").textContent = [
+    `${cfg.model || "model"} @ ${cfg.base_url || "base URL unset"}`,
+    paths.runtime_script_exists ? "runtime script found" : "runtime script missing",
+    paths.ollama_bin_exists ? "ollama found" : "ollama missing",
+    paths.orbstack_exists ? "OrbStack found" : "OrbStack not found",
+  ].join(" | ");
+  $("llm-training-detail").textContent = [
+    training.repo || "Unsloth repo unset",
+    paths.unsloth_repo_exists ? "repo found" : "repo missing",
+    paths.training_manifest_exists ? "job manifest found" : "job manifest missing",
+  ].join(" | ");
+  $("llm-secret-detail").textContent = secret.present
+    ? `${secret.env} present (${secret.masked})`
+    : `${secret.env || "GENESIS_LLM_API_KEY"} not present`;
+}
+
+async function loadLlmConfig() {
+  const status = await fetchLlmConfig();
+  renderLlmStatus(status);
+}
+
+function bindActions() {
+  $("refresh-modules").addEventListener("click", loadPlugins);
+
+  $("run-folder").addEventListener("click", async () => {
+    setStatus("Starting folder pipeline", "Submitting enterprise folder run.", true);
+    const out = await postJson("/api/folder/run", runPayload());
+    setStatus(out.ok ? "Folder pipeline queued" : "Run blocked", out.message || "No response.", out.ok);
+    await refreshStatus();
+  });
+
+  $("run-module").addEventListener("click", async () => {
+    const pluginId = $("module-choice").value;
+    setStatus(`Starting ${pluginId}`, "Submitting module run.", true);
+    const out = await postJson(`/api/plugins/run/${pluginId}`, runPayload());
+    setStatus(out.ok ? "Module queued" : "Run blocked", out.message || "No response.", out.ok);
+    await refreshStatus();
+  });
+
+  $("save-llm").addEventListener("click", async () => {
+    $("llm-status").textContent = "Saving AI engine configuration...";
+    const out = await postJson("/api/llm/save", llmPayload());
+    if (out.status) renderLlmStatus(out.status);
+  });
+
+  $("test-llm").addEventListener("click", async () => {
+    $("llm-status").textContent = "Testing AI engine...";
+    const out = await postJson("/api/llm/test", {});
+    if (out.status) renderLlmStatus(out.status);
+  });
+
+  $("start-llm").addEventListener("click", async () => {
+    $("llm-status").textContent = "Starting local LLM runtime...";
+    const out = await postJson("/api/llm/start", llmPayload());
+    $("llm-status").textContent = out.message || "Runtime command submitted.";
+    await refreshStatus();
+    setTimeout(loadLlmConfig, 2500);
+  });
+}
+
+async function main() {
+  await loadConfig();
+  await loadLlmConfig();
+  await loadPlugins();
+  bindActions();
+  await refreshStatus();
+  setInterval(refreshStatus, 3000);
+}
+
+main().catch(() => setStatus("Startup error", "Could not initialize WebUI.", false));

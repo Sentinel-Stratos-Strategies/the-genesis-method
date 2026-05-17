@@ -18,7 +18,10 @@ import platform
 import pyewf
 import pytsk3
 import pyvmdk
-import pyaff4
+try:
+    import pyaff4
+except ImportError:
+    pyaff4 = None
 import traceback
 
 def ImportPlugins(plugins, mode):
@@ -146,7 +149,10 @@ def LogLibraryVersions(log):
     log.info('Pytsk  version = {}'.format(pytsk3.get_version()))
     log.info('Pyewf  version = {}'.format(pyewf.get_version()))
     log.info('Pyvmdk version = {}'.format(pyvmdk.get_version()))
-    log.info('PyAFF4 version = {}'.format(pyaff4._version.raw_versions()['version']))
+    if pyaff4 is not None:
+        log.info('PyAFF4 version = {}'.format(pyaff4._version.raw_versions()['version']))
+    else:
+        log.warning('PyAFF4 not installed — AFF4 evidence images are unavailable (optional dependency).')
 
 def LogPlatformInfo(log):
     if getattr(sys, 'frozen', False):

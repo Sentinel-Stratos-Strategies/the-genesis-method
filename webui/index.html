@@ -3,103 +3,185 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>The Genesis Method - Forensic Platform</title>
+  <title>The Genesis Method - Enterprise Evidence Console</title>
   <link rel="stylesheet" href="/app.css" />
 </head>
 <body>
-  <div class="bg"></div>
+  <div class="shell">
+    <aside class="rail">
+      <div class="brand">
+        <img src="/assets/genesis-logo.png" alt="Genesis Method Logo" />
+        <div>
+          <h1>The Genesis Method</h1>
+          <p>Enterprise Evidence Console</p>
+        </div>
+      </div>
 
-  <div class="frame">
-    <header class="hero">
-      <h1>The Genesis Method</h1>
-      <p>Sentinel Stratos Strategies | Truth and Trust at Its Core</p>
-    </header>
+      <section class="panel">
+        <h2>Run State</h2>
+        <div id="run-status" class="status-pill">Ready</div>
+        <p id="run-meta" class="muted">No active run.</p>
+      </section>
 
-    <div class="layout">
-      <aside class="sidebar">
-        <div class="logo-block">
-          <img src="/assets/sentinel-logo.svg" alt="Sentinel Logo" />
+      <section class="panel">
+        <h2>Case Links</h2>
+        <nav class="links">
+          <a href="/outputs/">Output Repository</a>
+          <a href="/outputs/_logs/webui_actions.log">Action Log</a>
+          <a href="/workspace/docs/perplexity-computer-readback-2026-05-17.md">Perplexity Readback</a>
+          <a href="/workspace/README.md">Operational README</a>
+        </nav>
+      </section>
+    </aside>
+
+    <main class="workspace">
+      <header class="hero">
+        <div class="hero-title">
+          <p class="eyebrow">The Genesis Method</p>
+          <h2>Sentinel Stratos Strategies</h2>
+          <p>Truth and Trust at Its Core</p>
+        </div>
+
+        <div class="identity-card">
+          <img src="/assets/genesis-logo.png" alt="Genesis Method logo" />
           <div>
-            <h2>The Genesis Method</h2>
-            <span>Forensic Apple Platform</span>
+            <h3>The Genesis Method</h3>
+            <p>Forensic Apple Platform</p>
           </div>
         </div>
 
-        <div class="panel">
-          <h3>Live Status</h3>
-          <div id="run-status" class="status-pill">Ready</div>
-          <div class="status-meta" id="run-meta">No active run.</div>
+        <div class="hero-copy">
+          <p class="eyebrow">Sentinel Stratos Strategies</p>
+          <h4>Evidence intake, module orchestration, and defensible output control</h4>
+          <span>Choose a folder, name the output, choose the destination, then run the full enterprise pipeline or a single module.</span>
+        </div>
+        <button id="refresh-modules" class="secondary">Refresh Modules</button>
+      </header>
+
+      <section class="ops-panel">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Enterprise Intake</p>
+            <h3>Folder Run Configuration</h3>
+          </div>
+          <p class="muted">Scoped folder input with explicit output control.</p>
         </div>
 
-        <div class="panel">
-          <h3>Reports</h3>
-          <div class="linklist">
-            <a href="/evidence-house/house/_Report/">House Reports</a>
-            <a href="/evidence-fam/fam/_Report/">Fam Reports</a>
-            <a href="/evidence-house/house/_Timeline/">House Timeline</a>
-            <a href="/evidence-fam/fam/_Timeline/">Fam Timeline</a>
-            <a href="/evidence-house/_logs/webui_actions.log">WebUI Action Log</a>
+        <div class="config-grid">
+          <label class="wide">
+            <span>Evidence Folder</span>
+            <input id="input-dir" type="text" spellcheck="false" />
+          </label>
+          <label>
+            <span>Output Name</span>
+            <input id="output-name" type="text" spellcheck="false" />
+          </label>
+          <label class="wide">
+            <span>Output Destination</span>
+            <input id="output-base" type="text" spellcheck="false" />
+          </label>
+          <label>
+            <span>Folder Pipeline</span>
+            <select id="pipeline-choice">
+              <option value="full">Full folder pipeline</option>
+              <option value="inventory">Inventory + hash only</option>
+              <option value="sysdiagnose">Sysdiagnose killcard</option>
+              <option value="cloud">iCloud / Takeout ingest</option>
+              <option value="index">Forensic index build</option>
+            </select>
+          </label>
+        </div>
+      </section>
+
+      <section class="command-row">
+        <button id="run-folder" class="primary">Run Selected Folder</button>
+        <button id="run-module" class="primary subtle">Run Selected Module</button>
+        <select id="module-choice"></select>
+      </section>
+
+      <section class="ai-panel">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Genesis AI Engine</p>
+            <h3>Local + Enterprise Model Control</h3>
+          </div>
+          <p id="llm-status" class="muted">Checking AI engine...</p>
+        </div>
+
+        <div class="ai-grid">
+          <label>
+            <span>Provider</span>
+            <select id="llm-provider">
+              <option value="ollama">Local Ollama</option>
+              <option value="openai">OpenAI Responses</option>
+              <option value="openai_compatible">OpenAI-compatible API</option>
+              <option value="perplexity">Perplexity / Sonar</option>
+              <option value="anthropic">Anthropic</option>
+            </select>
+          </label>
+          <label>
+            <span>Model</span>
+            <input id="llm-model" type="text" spellcheck="false" />
+          </label>
+          <label class="wide">
+            <span>Base URL</span>
+            <input id="llm-base-url" type="text" spellcheck="false" />
+          </label>
+          <label>
+            <span>API Key Env</span>
+            <input id="llm-api-env" type="text" spellcheck="false" />
+          </label>
+          <label class="wide">
+            <span>API Key</span>
+            <input id="llm-api-key" type="password" spellcheck="false" placeholder="Optional: saved to local chmod 600 env file" />
+          </label>
+          <label>
+            <span>Temperature</span>
+            <input id="llm-temperature" type="number" min="0" max="2" step="0.05" />
+          </label>
+          <label class="wide">
+            <span>Runtime Script</span>
+            <input id="llm-runtime-script" type="text" spellcheck="false" />
+          </label>
+          <label class="wide">
+            <span>Memory Roots</span>
+            <input id="llm-memory-roots" type="text" spellcheck="false" />
+          </label>
+        </div>
+
+        <div class="ai-actions">
+          <button id="save-llm" class="primary">Save AI Engine</button>
+          <button id="test-llm" class="secondary">Test AI Engine</button>
+          <button id="start-llm" class="secondary">Start Local Runtime</button>
+        </div>
+
+        <div class="ai-footprint">
+          <div>
+            <strong>Mistral Nemo</strong>
+            <span id="llm-runtime-detail">Runtime path pending.</span>
+          </div>
+          <div>
+            <strong>Unsloth Training</strong>
+            <span id="llm-training-detail">Training path pending.</span>
+          </div>
+          <div>
+            <strong>Secret State</strong>
+            <span id="llm-secret-detail">No secret loaded yet.</span>
           </div>
         </div>
+      </section>
 
-        <div class="panel">
-          <h3>Genesis Docs</h3>
-          <div class="linklist">
-            <a href="/house/genesis/">Open Genesis Folder</a>
-            <a href="/house/genesis/Genesis-Method-Overview.md">Overview</a>
-            <a href="/house/genesis/Genesis-Configuration-Guide.md">Configuration Guide</a>
-            <a href="/house/genesis/Genesis-Method-Complete-Guide.pdf">Complete Guide (PDF)</a>
+      <section class="module-section">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Registry</p>
+            <h3>Forensic Modules</h3>
           </div>
+          <p id="module-count" class="muted">Loading modules...</p>
         </div>
-      </aside>
-
-      <main class="actions">
-        <h3>Action Grid</h3>
-        <div class="action-grid">
-          <button class="tile run" data-choice="12">House Full + Report</button>
-          <button class="tile run" data-choice="20">House Genesis Analyst</button>
-          <button class="tile run" data-choice="93">Combined Genesis Analyst</button>
-
-          <button class="tile run" data-choice="32">Fam Full + Report</button>
-          <button class="tile run" data-choice="40">Fam Genesis Analyst</button>
-          <button class="tile run" data-choice="16">House Sigma</button>
-
-          <button class="tile run" data-choice="15">House YARA</button>
-          <button class="tile run" data-choice="17">House ClamAV Quick</button>
-          <button class="tile run" data-choice="19">House Plaso</button>
-
-          <button class="tile run" data-choice="35">Fam YARA</button>
-          <button class="tile run" data-choice="36">Fam Sigma</button>
-          <button class="tile run" data-choice="37">Fam ClamAV Quick</button>
-          <button class="tile run" data-choice="39">Fam Plaso</button>
-
-          <button class="tile run" data-choice="14">House Merge Timeline</button>
-          <button class="tile run" data-choice="13">House Build Report</button>
-          <a class="tile" href="/evidence-house/">House Outputs</a>
-
-          <button class="tile run" data-choice="34">Fam Merge Timeline</button>
-          <button class="tile run" data-choice="33">Fam Build Report</button>
-          <a class="tile" href="/evidence-fam/">Fam Outputs</a>
-
-          <button class="tile run" data-choice="1">House Core</button>
-          <button class="tile run" data-choice="2">House Comms</button>
-          <button class="tile run" data-choice="3">House Security</button>
-
-          <button class="tile run" data-choice="21">Fam Core</button>
-          <button class="tile run" data-choice="22">Fam Comms</button>
-          <button class="tile run" data-choice="23">Fam Security</button>
-        </div>
-
-        <div class="command">
-          <div class="command-title">Direct CLI (still available)</div>
-          <pre>./run_forensics.sh
-./run_forensics.sh --choice 36   # Fam Sigma
-./run_forensics.sh --choice 32   # Fam Full + Report</pre>
-        </div>
-      </main>
-    </div>
-
-    <footer class="footer">The Genesis Method | Sentinel Stratos Strategies</footer>
+        <div id="module-grid" class="module-grid"></div>
+      </section>
+    </main>
   </div>
 
   <script src="/app.js"></script>

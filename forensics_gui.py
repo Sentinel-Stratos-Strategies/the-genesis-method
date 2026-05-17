@@ -1,45 +1,47 @@
 #!/usr/bin/env python3
+import json
 import os
 import subprocess
+import sys
 import threading
+import time
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog
 
-
 ROOT = str(Path(__file__).resolve().parent)
-PROJECT_NAME = Path(ROOT).name
+ROOT_PATH = Path(ROOT)
+PROJECT_NAME = ROOT_PATH.name
 
+sys.path.insert(0, os.path.join(ROOT, "tools"))
+from genesis_paths import load_paths, save_paths  # noqa: E402
 
-def detect_fam_root() -> str:
-    env_root = os.environ.get("GENESIS_FAM_ROOT")
-    if env_root:
-        return env_root
-    tools_path = Path(f"/Users/fam/Tools/{PROJECT_NAME}")
-    user_path = Path(f"/Users/fam/{PROJECT_NAME}")
-    if tools_path.exists():
-        return str(tools_path)
-    if user_path.exists():
-        return str(user_path)
-    return "/Users/fam"
+_PATHS = load_paths(ROOT_PATH)
+_DEFAULT_OUT_ROOT = _PATHS["evidence_output_root"]
 
-
-def migrate_old_root_path(path_in: str) -> str:
-    if path_in.startswith("/Users/house/Tools/hunting"):
-        return path_in.replace("/Users/house/Tools/hunting", ROOT, 1)
-    return path_in
-
-
-FAM_ROOT = detect_fam_root()
-HOUSE_OUT_BASE = os.environ.get("OUT_DIR_HOUSE", "/Users/House/EVIDENCE")
-FAM_OUT_BASE = os.environ.get("OUT_DIR_FAM", os.path.join(FAM_ROOT, "forensics_out"))
 LAUNCHER = os.path.join(ROOT, "run_forensics.sh")
-HOUSE_INPUT_FILE = os.path.join(ROOT, "inputs", "house_path.txt")
-FAM_INPUT_FILE = os.path.join(ROOT, "inputs", "fam_path.txt")
-LAST_HOUSE_FILE = os.path.join(ROOT, "last_output_house.txt")
-LAST_FAM_FILE = os.path.join(ROOT, "last_output_fam.txt")
-GUI_LOG_FILE = os.path.join(HOUSE_OUT_BASE, "_logs", "gui_actions.log")
-LOGO_PNG = os.path.join(ROOT, "assets", "sentinel-logo.png")
+LAST_RUN_FILE = os.path.join(ROOT, "last_enterprise_output.txt")
+LOG_SUBDIR = "_logs"
+GUI_LOG_FILE = os.path.join(_DEFAULT_OUT_ROOT, LOG_SUBDIR, "gui_actions.log")
+LOGO_PNG = os.path.join(ROOT, "assets", "genesis-logo.png")
+if not os.path.isfile(LOGO_PNG):
+    LOGO_PNG = os.path.join(ROOT, "assets", "sentinel-logo.png")
+PLUGIN_RUNNER = os.path.join(ROOT, "tools", "plugin_runner.py")
+PLUGIN_DIR = os.path.join(ROOT, "plugins")
+
+
+def list_plugins():
+    try:
+        res = subprocess.run(
+            [sys.executable, PLUGIN_RUNNER, "--plugin-dir", PLUGIN_DIR, "--list"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return json.loads(res.stdout)
+    except Exception:
+        return []
+
 
 BG = "#070312"
 CARD = "#120723"
@@ -122,27 +124,45 @@ class NeonButton(tk.Frame):
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("The Genesis Method - Control Center")
-        self.geometry("1260x900")
-        self.minsize(1160, 860)
+        self.title("The Genesis Method — Enterprise Control Center")
+        self.geometry("1280x920")
+        self.minsize(1100, 800)
         self.configure(bg=BG)
 
-        self.house_input = tk.StringVar(value=os.path.join(ROOT, "inputs", "house"))
-        if Path(HOUSE_INPUT_FILE).exists():
-            self.house_input.set(migrate_old_root_path(Path(HOUSE_INPUT_FILE).read_text(encoding="utf-8").strip()))
-        self.fam_input = tk.StringVar(value=os.path.join(ROOT, "inputs", "fam"))
-        if Path(FAM_INPUT_FILE).exists():
-            self.fam_input.set(migrate_old_root_path(Path(FAM_INPUT_FILE).read_text(encoding="utf-8").strip()))
+        paths = load_paths(ROOT_PATH)
+        self.enterprise_input = tk.StringVar(value=paths["evidence_input_root"])
+        self.enterprise_output_root = tk.StringVar(value=paths["evidence_output_root"])
+        dc = paths.get("default_case_name") or ""
+        self.enterprise_case = tk.StringVar(value=dc or f"case_{time.strftime('%Y%m%d_%H%M%S')}")
 
         self.output_hint = tk.StringVar(
-            value=f"Output base (house): {HOUSE_OUT_BASE} | Output base (fam): {FAM_OUT_BASE}"
+            value=f"Evidence INPUT (Stratos area): {self.enterprise_input.get()} | OUTPUT root (SENTINEL): {self.enterprise_output_root.get()}"
         )
-        self.last_house = tk.StringVar(value="Last output (house): (none)")
-        self.last_fam = tk.StringVar(value="Last output (fam): (none)")
+        self.last_run = tk.StringVar(value="Last enterprise run folder: (none)")
         self.status = tk.StringVar(value="Ready.")
-        self._load_last_outputs()
+        self._refresh_gui_log_path()
+        self._load_last_run()
 
         self._build_ui()
+
+    def _refresh_gui_log_path(self):
+        global GUI_LOG_FILE
+        root_out = self.enterprise_output_root.get().strip() or _DEFAULT_OUT_ROOT
+        GUI_LOG_FILE = os.path.join(root_out, LOG_SUBDIR, "gui_actions.log")
+
+    def _save_paths_config(self):
+        save_paths(
+            ROOT_PATH,
+            {
+                "evidence_input_root": self.enterprise_input.get().strip(),
+                "evidence_output_root": self.enterprise_output_root.get().strip(),
+                "default_case_name": self.enterprise_case.get().strip(),
+            },
+        )
+        self.output_hint.set(
+            f"Evidence INPUT: {self.enterprise_input.get()} | OUTPUT root: {self.enterprise_output_root.get()} (saved)"
+        )
+        self._refresh_gui_log_path()
 
     def _build_ui(self):
         header = tk.Frame(self, bg=CARD, highlightbackground=BORDER, highlightthickness=1)
@@ -165,130 +185,213 @@ class App(tk.Tk):
         tk.Label(title_frame, text="THE GENESIS METHOD", font=FONT_TITLE, bg=CARD, fg=ACCENT2).pack(anchor="w")
         tk.Label(
             title_frame,
-            text="Truth and Trust at Its Core | Sentinel Stratos Strategies",
+            text="Enterprise Evidence Console — Sentinel Stratos Strategies",
             font=FONT_SUBTITLE,
             bg=CARD,
             fg=MUTED,
         ).pack(anchor="w")
         tk.Label(title_frame, textvariable=self.status, font=FONT_STATUS, bg=CARD, fg=ACCENT).pack(anchor="w", pady=(6, 0))
 
-        content = tk.Frame(self, bg=BG)
-        content.pack(fill="both", expand=True, padx=14)
-
-        left = tk.Frame(content, bg=BG)
-        right = tk.Frame(content, bg=BG)
-        left.pack(side="left", fill="both", expand=True, padx=(0, 8))
-        right.pack(side="left", fill="both", expand=True, padx=(8, 0))
-
-        self._build_column(
-            left,
-            "House Section",
-            [
-                ("1", "House Core"), ("2", "House Comms"), ("3", "House Security"),
-                ("4", "House iLEAPP"), ("5", "House xLEAPP"), ("10", "House Full Run"),
-                ("12", "House Full + Report"), ("13", "House Build Report"), ("14", "House Merge Timeline"),
-                ("15", "House YARA"), ("16", "House Sigma"), ("17", "House ClamAV Quick"),
-                ("18", "House ClamAV Full"), ("19", "House Plaso"), ("20", "House Genesis Analyst"),
-                ("6", "Open House iLEAPP"), ("7", "Open House mac_apt"), ("8", "Export House iLEAPP TL"),
-                ("9", "Export House mac_apt TL"), ("11", "Purge House"),
-            ],
+        paths_panel = tk.Frame(self, bg=PANEL, highlightbackground=BORDER, highlightthickness=1)
+        paths_panel.pack(fill="x", padx=14, pady=(0, 8))
+        tk.Label(paths_panel, text="Evidence paths (keep case data out of the repo)", font=FONT_SECTION, bg=PANEL, fg=TEXT).pack(
+            anchor="w", padx=10, pady=(10, 6)
         )
+        self._input_row(paths_panel, "INPUT folder:", self.enterprise_input, self._browse_input)
+        self._input_row(paths_panel, "OUTPUT root:", self.enterprise_output_root, self._browse_output_root)
+        self._input_row(paths_panel, "Case subfolder:", self.enterprise_case, None)
 
-        self._build_column(
-            right,
-            "Fam Section",
-            [
-                ("21", "Fam Core"), ("22", "Fam Comms"), ("23", "Fam Security"),
-                ("24", "Fam iLEAPP"), ("25", "Fam xLEAPP"), ("30", "Fam Full Run"),
-                ("32", "Fam Full + Report"), ("33", "Fam Build Report"), ("34", "Fam Merge Timeline"),
-                ("35", "Fam YARA"), ("36", "Fam Sigma"), ("37", "Fam ClamAV Quick"),
-                ("38", "Fam ClamAV Full"), ("39", "Fam Plaso"), ("40", "Fam Genesis Analyst"),
-                ("26", "Open Fam iLEAPP"), ("27", "Open Fam mac_apt"), ("28", "Export Fam iLEAPP TL"),
-                ("29", "Export Fam mac_apt TL"), ("31", "Purge Fam"),
-            ],
-        )
-
-        footer = tk.Frame(self, bg=PANEL, highlightbackground=BORDER, highlightthickness=1)
-        footer.pack(fill="x", padx=14, pady=(10, 12))
-
-        tk.Label(footer, textvariable=self.output_hint, bg=PANEL, fg=MUTED, font=FONT_SUBTITLE).pack(
-            anchor="w", padx=10, pady=(8, 2)
-        )
-        tk.Label(footer, textvariable=self.last_house, bg=PANEL, fg=TEXT, font=FONT_BODY).pack(anchor="w", padx=10)
-        tk.Label(footer, textvariable=self.last_fam, bg=PANEL, fg=TEXT, font=FONT_BODY).pack(anchor="w", padx=10, pady=(0, 6))
-
-        input_frame = tk.Frame(footer, bg=PANEL)
-        input_frame.pack(fill="x", padx=8, pady=(2, 10))
-        self._input_row(input_frame, "House iOS input:", self.house_input, self._browse_house)
-        self._input_row(input_frame, "Fam iOS input:", self.fam_input, self._browse_fam)
-
-        common = tk.Frame(footer, bg=PANEL)
-        common.pack(fill="x", padx=8, pady=(0, 10))
-        self._common_button(common, "Genesis Analyst Combined", "93")
-        self._common_button(common, "Start Web UI", "90")
-        self._common_button(common, "Start Timesketch", "92")
+        row_btns = tk.Frame(paths_panel, bg=PANEL)
+        row_btns.pack(fill="x", padx=8, pady=(4, 12))
         NeonButton(
-            common,
-            text="Refresh Last Outputs",
-            command=self._load_last_outputs,
+            row_btns,
+            text="Save paths",
+            command=self._save_paths_config,
             fill=BTN_DARK,
             border=BORDER,
             hover=BTN_GLOW,
             font=FONT_BUTTON,
-            wraplength=180,
-            padx=14,
+            wraplength=120,
+            padx=12,
             pady=8,
-        ).pack(side="left", padx=6)
+        ).pack(side="left", padx=4)
 
-    def _build_column(self, parent, title, actions):
-        panel = tk.Frame(parent, bg=PANEL, highlightbackground=BORDER, highlightthickness=1)
-        panel.pack(fill="both", expand=True)
-        tk.Label(panel, text=title, font=FONT_SECTION, bg=PANEL, fg=TEXT).pack(anchor="w", padx=10, pady=(10, 8))
+        content = tk.Frame(self, bg=BG)
+        content.pack(fill="both", expand=True, padx=14)
 
-        grid = tk.Frame(panel, bg=PANEL)
-        grid.pack(fill="both", expand=True, padx=8, pady=(0, 10))
-        for col in range(3):
-            grid.grid_columnconfigure(col, weight=1)
+        self._build_modules_section(content)
 
-        for idx, (choice, text) in enumerate(actions):
-            row = idx // 3
-            col = idx % 3
-            fill, border, hover = self._button_style(choice, idx)
-            NeonButton(
-                grid,
-                text=text,
-                command=lambda c=choice: self._run_choice(c),
-                fill=fill,
-                border=border,
-                hover=hover,
-                font=FONT_BUTTON,
-                wraplength=170,
-                padx=10,
-                pady=10,
-            ).grid(row=row, column=col, sticky="nsew", padx=5, pady=5)
+        footer = tk.Frame(self, bg=PANEL, highlightbackground=BORDER, highlightthickness=1)
+        footer.pack(fill="x", padx=14, pady=(10, 12))
 
-    def _common_button(self, parent, label, choice):
+        tk.Label(footer, textvariable=self.output_hint, bg=PANEL, fg=MUTED, font=FONT_SUBTITLE).pack(anchor="w", padx=10, pady=(8, 2))
+        tk.Label(footer, textvariable=self.last_run, bg=PANEL, fg=TEXT, font=FONT_BODY).pack(anchor="w", padx=10, pady=(0, 6))
+
+        common = tk.Frame(footer, bg=PANEL)
+        common.pack(fill="x", padx=8, pady=(0, 10))
         NeonButton(
-            parent,
-            text=label,
-            command=lambda c=choice: self._run_choice(c),
+            common,
+            text="Start Web UI",
+            command=lambda: self._run_choice("90"),
             fill=BTN_GLOW,
             border=BORDER,
             hover=ACCENT3,
             font=FONT_BUTTON,
-            wraplength=180,
+            wraplength=140,
+            padx=14,
+            pady=8,
+        ).pack(side="left", padx=6)
+        NeonButton(
+            common,
+            text="Timesketch",
+            command=lambda: self._run_choice("92"),
+            fill=BTN_GLOW,
+            border=BORDER,
+            hover=ACCENT3,
+            font=FONT_BUTTON,
+            wraplength=120,
+            padx=14,
+            pady=8,
+        ).pack(side="left", padx=6)
+        NeonButton(
+            common,
+            text="Terminal TUI",
+            command=self._spawn_tui,
+            fill=BTN_DARK,
+            border=BORDER,
+            hover=BTN_GLOW,
+            font=FONT_BUTTON,
+            wraplength=120,
+            padx=14,
+            pady=8,
+        ).pack(side="left", padx=6)
+        NeonButton(
+            common,
+            text="Refresh status",
+            command=self._load_last_run,
+            fill=BTN_DARK,
+            border=BORDER,
+            hover=BTN_GLOW,
+            font=FONT_BUTTON,
+            wraplength=120,
             padx=14,
             pady=8,
         ).pack(side="left", padx=6)
 
+    def _spawn_tui(self):
+        subprocess.Popen([sys.executable, os.path.join(ROOT, "tools", "genesis_tui.py")], cwd=ROOT)
+
+    def _build_modules_section(self, parent):
+        plugins = list_plugins()
+        if not plugins:
+            tk.Label(parent, text="No plugins discovered.", bg=BG, fg=MUTED, font=FONT_BODY).pack(pady=20)
+            return
+
+        inner = tk.Frame(parent, bg=PANEL, highlightbackground=BORDER, highlightthickness=1)
+        inner.pack(fill="both", expand=True)
+
+        tk.Label(inner, text="Manifest + Python modules", font=FONT_SECTION, bg=PANEL, fg=TEXT).pack(anchor="w", padx=10, pady=(10, 8))
+
+        canvas = tk.Canvas(inner, bg=PANEL, highlightthickness=0)
+        scrollbar = tk.Scrollbar(inner, orient="vertical", command=canvas.yview)
+        scrollable_frame = tk.Frame(canvas, bg=PANEL)
+
+        scrollable_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True, padx=5)
+        scrollbar.pack(side="right", fill="y")
+
+        for idx, p in enumerate(plugins):
+            p_id = p["id"]
+            p_name = p["name"]
+            p_cat = p["category"]
+            p_target = p.get("target", "common")
+
+            btn_text = f"[{p_cat}] {p_name} ({p_target})"
+            row = idx // 2
+            col = idx % 2
+
+            fill, border, hover = self._button_style("plugin", idx)
+            NeonButton(
+                scrollable_frame,
+                text=btn_text,
+                command=lambda pid=p_id: self._run_plugin(pid),
+                fill=fill,
+                border=border,
+                hover=hover,
+                font=FONT_BUTTON,
+                wraplength=220,
+                padx=10,
+                pady=10,
+            ).grid(row=row, column=col, sticky="nsew", padx=5, pady=5)
+
+    def _run_plugin(self, plugin_id):
+        self.status.set(f"Running module {plugin_id}...")
+        thread = threading.Thread(target=self._run_plugin_bg, args=(plugin_id,), daemon=True)
+        thread.start()
+
+    def _enterprise_output_dir(self):
+        base = self.enterprise_output_root.get().strip() or _DEFAULT_OUT_ROOT
+        case = self.enterprise_case.get().strip() or f"case_{time.strftime('%Y%m%d_%H%M%S')}"
+        target_dir = os.path.join(base, case)
+        os.makedirs(target_dir, exist_ok=True)
+        return target_dir
+
+    def _run_plugin_bg(self, plugin_id):
+        plugins = list_plugins()
+        plugin = next((p for p in plugins if p["id"] == plugin_id), None)
+        if not plugin:
+            self.after(0, lambda: self.status.set(f"Error: Plugin {plugin_id} not found."))
+            return
+
+        target_dir = self._enterprise_output_dir()
+        input_dir = self.enterprise_input.get().strip()
+        self._refresh_gui_log_path()
+        os.makedirs(os.path.dirname(GUI_LOG_FILE), exist_ok=True)
+
+        env = os.environ.copy()
+        env.setdefault("GENESIS_INPUT_DIR", input_dir)
+
+        cmd = [
+            sys.executable,
+            PLUGIN_RUNNER,
+            "--plugin-dir",
+            PLUGIN_DIR,
+            "--plugin",
+            plugin_id,
+            "--output-dir",
+            target_dir,
+            "--input-dir",
+            input_dir,
+        ]
+
+        with open(GUI_LOG_FILE, "a", encoding="utf-8") as log:
+            log.write(f"\n=== Plugin {plugin_id} ===\n")
+            log.write(f"cmd: {' '.join(cmd)}\n")
+            proc = subprocess.run(cmd, cwd=ROOT, env=env, stdout=log, stderr=log, text=True)
+            rc = proc.returncode
+
+        Path(LAST_RUN_FILE).write_text(target_dir + "\n", encoding="utf-8")
+        self.after(0, lambda: self._on_plugin_done(plugin_id, rc))
+
+    def _on_plugin_done(self, plugin_id, rc):
+        if rc == 0:
+            self.status.set(f"Completed module {plugin_id}. Output: {self._enterprise_output_dir()}")
+        else:
+            self.status.set(f"Module {plugin_id} failed (code {rc}). Log: {GUI_LOG_FILE}")
+        self._load_last_run()
+
     def _input_row(self, parent, label_text, var, browse_cb):
         row = tk.Frame(parent, bg=PANEL)
         row.pack(fill="x", pady=3)
-        tk.Label(row, text=label_text, bg=PANEL, fg=TEXT, font=FONT_SUBTITLE, width=16, anchor="w").pack(side="left")
+        tk.Label(row, text=label_text, bg=PANEL, fg=TEXT, font=FONT_SUBTITLE, width=18, anchor="w").pack(side="left")
         tk.Entry(
             row,
             textvariable=var,
-            width=80,
+            width=86,
             bg="#090414",
             fg=TEXT,
             insertbackground=TEXT,
@@ -296,18 +399,30 @@ class App(tk.Tk):
             highlightthickness=2,
             bd=0,
         ).pack(side="left", padx=6)
-        NeonButton(
-            row,
-            text="Browse",
-            command=browse_cb,
-            fill=BTN_DARK,
-            border=BORDER,
-            hover=BTN_GLOW,
-            font=FONT_BUTTON,
-            wraplength=80,
-            padx=12,
-            pady=6,
-        ).pack(side="left")
+        if browse_cb:
+            NeonButton(
+                row,
+                text="Browse",
+                command=browse_cb,
+                fill=BTN_DARK,
+                border=BORDER,
+                hover=BTN_GLOW,
+                font=FONT_BUTTON,
+                wraplength=80,
+                padx=12,
+                pady=6,
+            ).pack(side="left")
+
+    def _browse_input(self):
+        path = filedialog.askdirectory()
+        if path:
+            self.enterprise_input.set(path)
+
+    def _browse_output_root(self):
+        path = filedialog.askdirectory()
+        if path:
+            self.enterprise_output_root.set(path)
+            self._refresh_gui_log_path()
 
     def _button_style(self, choice, idx):
         if choice in {"11", "31"}:
@@ -320,32 +435,11 @@ class App(tk.Tk):
             return BTN_MAGENTA_BG, BTN_MAGENTA_BORDER, "#a73dd6"
         return BTN_CYAN_BG, BTN_CYAN_BORDER, "#1fc2d6"
 
-    def _write_input_file(self, path, target_file):
-        os.makedirs(os.path.dirname(target_file), exist_ok=True)
-        with open(target_file, "w", encoding="utf-8") as f:
-            f.write(path)
-
-    def _browse_house(self):
-        path = filedialog.askdirectory()
-        if path:
-            self.house_input.set(path)
-            self._write_input_file(path, HOUSE_INPUT_FILE)
-
-    def _browse_fam(self):
-        path = filedialog.askdirectory()
-        if path:
-            self.fam_input.set(path)
-            self._write_input_file(path, FAM_INPUT_FILE)
-
-    def _load_last_outputs(self):
-        if Path(LAST_HOUSE_FILE).exists():
-            self.last_house.set(f"Last output (house): {Path(LAST_HOUSE_FILE).read_text(encoding='utf-8').strip()}")
+    def _load_last_run(self):
+        if Path(LAST_RUN_FILE).exists():
+            self.last_run.set(f"Last enterprise run folder: {Path(LAST_RUN_FILE).read_text(encoding='utf-8').strip()}")
         else:
-            self.last_house.set("Last output (house): (none)")
-        if Path(LAST_FAM_FILE).exists():
-            self.last_fam.set(f"Last output (fam): {Path(LAST_FAM_FILE).read_text(encoding='utf-8').strip()}")
-        else:
-            self.last_fam.set("Last output (fam): (none)")
+            self.last_run.set("Last enterprise run folder: (none)")
 
     def _run_choice(self, choice):
         self.status.set(f"Running option {choice}...")
@@ -353,9 +447,9 @@ class App(tk.Tk):
         thread.start()
 
     def _run_choice_bg(self, choice):
+        self._refresh_gui_log_path()
         os.makedirs(os.path.dirname(GUI_LOG_FILE), exist_ok=True)
         env = os.environ.copy()
-        env["GENESIS_FAM_ROOT"] = FAM_ROOT
         cmd = [LAUNCHER, "--choice", str(choice)]
         with open(GUI_LOG_FILE, "a", encoding="utf-8") as log:
             log.write(f"\n=== Option {choice} ===\n")
@@ -371,8 +465,7 @@ class App(tk.Tk):
         if rc == 0:
             self.status.set(f"Completed option {choice}.")
         else:
-            self.status.set(f"Option {choice} failed (code {rc}). See gui_actions.log.")
-        self._load_last_outputs()
+            self.status.set(f"Option {choice} failed (code {rc}). Log: {GUI_LOG_FILE}")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,6 @@
+{
+  "evidence_input_root": "/Volumes/Stratos_Tools/GENESIS_EVIDENCE_INPUT/staging",
+  "evidence_output_root": "/Volumes/SENTINEL/GENESIS_EVIDENCE_OUTPUT/runs",
+  "default_case_name": "",
+  "memory_contract_root": "/Volumes/Stratos_Tools/projects/memory-contract"
+}

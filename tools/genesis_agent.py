@@ -110,6 +110,165 @@ def call_openai(api_key, payload):
         raise RuntimeError(f"HTTP {exc.code}: {detail}") from exc
 
 
+def project_root():
+    return Path(__file__).resolve().parents[1]
+
+
+def load_llm_config():
+    path = Path(os.environ.get("GENESIS_LLM_CONFIG", project_root() / "config" / "genesis_llm_config.json"))
+    if not path.exists():
+        return {
+            "provider": "openai",
+            "model": os.environ.get("GENESIS_MODEL", "gpt-4.1"),
+            "base_url": "https://api.openai.com/v1",
+            "api_key_env": "OPENAI_API_KEY",
+            "temperature": 0.1,
+        }
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {
+            "provider": "openai",
+            "model": os.environ.get("GENESIS_MODEL", "gpt-4.1"),
+            "base_url": "https://api.openai.com/v1",
+            "api_key_env": "OPENAI_API_KEY",
+            "temperature": 0.1,
+        }
+
+
+def load_secret_env_file():
+    path = Path(os.environ.get("GENESIS_LLM_SECRET_ENV", project_root() / "config" / ".genesis_llm_secrets.env"))
+    values = {}
+    if not path.exists():
+        return values
+    for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        values[key.strip()] = value.strip()
+    return values
+
+
+def resolve_api_key(config):
+    env_name = config.get("api_key_env") or "GENESIS_LLM_API_KEY"
+    return os.environ.get(env_name) or load_secret_env_file().get(env_name) or ""
+
+
+def payload_to_chat_messages(payload):
+    return [
+        {"role": "system", "content": payload.get("instructions", "")},
+        {"role": "user", "content": payload.get("input", "")},
+    ]
+
+
+def chat_text_response(text, provider, model, raw=None):
+    return {
+        "output": [
+            {
+                "content": [
+                    {
+                        "type": "output_text",
+                        "text": text,
+                    }
+                ]
+            }
+        ],
+        "provider": provider,
+        "model": model,
+        "raw": raw,
+    }
+
+
+def call_json_endpoint(url, payload, headers=None, timeout=180):
+    context = None
+    if url.startswith("https://"):
+        custom_cafile = os.environ.get("SSL_CERT_FILE")
+        if custom_cafile and Path(custom_cafile).exists():
+            context = ssl.create_default_context(cafile=custom_cafile)
+        else:
+            try:
+                import certifi  # type: ignore
+
+                context = ssl.create_default_context(cafile=certifi.where())
+            except Exception:
+                context = ssl.create_default_context()
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json", **(headers or {})},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout, context=context) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        body = ""
+        try:
+            body = exc.read().decode("utf-8", errors="ignore")
+        except Exception:
+            body = ""
+        detail = body.strip() if body else str(exc)
+        raise RuntimeError(f"HTTP {exc.code}: {detail}") from exc
+
+
+def call_ollama(config, payload):
+    base_url = (config.get("base_url") or "http://127.0.0.1:11436").rstrip("/")
+    model = config.get("model") or payload.get("model") or "mistral-nemo:latest"
+    data = {
+        "model": model,
+        "messages": payload_to_chat_messages(payload),
+        "stream": False,
+        "options": {
+            "temperature": float(config.get("temperature", payload.get("temperature", 0.1))),
+        },
+    }
+    raw = call_json_endpoint(f"{base_url}/api/chat", data, timeout=240)
+    text = ((raw.get("message") or {}).get("content") or "").strip()
+    return chat_text_response(text, "ollama", model, raw)
+
+
+def call_openai_compatible(config, payload):
+    provider = config.get("provider") or "openai_compatible"
+    base_url = (config.get("base_url") or "https://api.openai.com/v1").rstrip("/")
+    model = config.get("model") or payload.get("model")
+    api_key = resolve_api_key(config)
+    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+    data = {
+        "model": model,
+        "messages": payload_to_chat_messages(payload),
+        "temperature": float(config.get("temperature", payload.get("temperature", 0.1))),
+    }
+    raw = call_json_endpoint(f"{base_url}/chat/completions", data, headers=headers, timeout=180)
+    choices = raw.get("choices") or []
+    text = ""
+    if choices:
+        text = ((choices[0].get("message") or {}).get("content") or choices[0].get("text") or "").strip()
+    return chat_text_response(text, provider, model, raw)
+
+
+def call_configured_llm(payload, requested_model):
+    config = load_llm_config()
+    if requested_model:
+        config["model"] = requested_model
+    provider = (config.get("provider") or "openai").lower()
+    if provider == "ollama":
+        try:
+            return call_ollama(config, payload), config.get("model"), ""
+        except Exception as exc:
+            return None, None, str(exc)
+    if provider in {"openai_compatible", "perplexity", "anthropic"}:
+        try:
+            return call_openai_compatible(config, payload), config.get("model"), ""
+        except Exception as exc:
+            return None, None, str(exc)
+
+    api_key = resolve_api_key({**config, "api_key_env": config.get("api_key_env") or "OPENAI_API_KEY"})
+    if not api_key:
+        return None, None, f"Missing API key for provider {provider}."
+    return call_openai_with_fallback(api_key, payload, config.get("model") or requested_model)
+
+
 def is_model_access_error(err_text):
     text = err_text.lower()
     return (
@@ -531,15 +690,15 @@ def write_markdown_report(
         f.write(f"Generated: {datetime.now().isoformat(timespec='seconds')}\n\n")
 
         if ai_text:
-            f.write("## Analyst Synthesis (OpenAI)\n\n")
+            f.write("## Analyst Synthesis (Genesis AI)\n\n")
             f.write(f"Model used: `{ai_model}`\n\n")
             f.write(ai_text.strip() + "\n\n")
         elif ai_error:
-            f.write("## Analyst Synthesis (OpenAI)\n\n")
-            f.write(f"OpenAI synthesis unavailable: `{ai_error}`\n\n")
+            f.write("## Analyst Synthesis (Genesis AI)\n\n")
+            f.write(f"AI synthesis unavailable: `{ai_error}`\n\n")
         else:
-            f.write("## Analyst Synthesis (OpenAI)\n\n")
-            f.write("OpenAI synthesis skipped (no API key). Local evidence inventory generated below.\n\n")
+            f.write("## Analyst Synthesis (Genesis AI)\n\n")
+            f.write("AI synthesis skipped. Local evidence inventory generated below.\n\n")
 
         f.write("## Scope\n\n")
         f.write("| Subject | Artifact | Output Directory |\n")
@@ -601,7 +760,7 @@ def main():
     parser.add_argument("--out-base", required=True)
     parser.add_argument("--peer-label")
     parser.add_argument("--peer-out-base")
-    parser.add_argument("--model", default=os.environ.get("GENESIS_MODEL", "gpt-4.1"))
+    parser.add_argument("--model", default=os.environ.get("GENESIS_MODEL"))
     parser.add_argument("--max-per-category", type=int, default=2000)
     args = parser.parse_args()
 
@@ -635,27 +794,25 @@ def main():
 
     write_inventory_csv(out_csv, normalized_identifiers)
 
-    api_key = os.environ.get("OPENAI_API_KEY")
     ai_text = ""
     ai_model = ""
     ai_error = ""
-    openai_raw = None
+    ai_raw = None
 
-    if api_key:
-        payload = build_ai_payload(
-            primary_subject,
-            subject_data,
-            normalized_identifiers,
-            category_counts,
-            all_security_rows,
-            args.model,
-        )
-        openai_raw, chosen_model, error_text = call_openai_with_fallback(api_key, payload, args.model)
-        if openai_raw is not None:
-            ai_text = extract_output_text(openai_raw)
-            ai_model = chosen_model or args.model
-        else:
-            ai_error = error_text
+    payload = build_ai_payload(
+        primary_subject,
+        subject_data,
+        normalized_identifiers,
+        category_counts,
+        all_security_rows,
+        args.model or load_llm_config().get("model", "mistral-nemo:latest"),
+    )
+    ai_raw, chosen_model, error_text = call_configured_llm(payload, args.model)
+    if ai_raw is not None:
+        ai_text = extract_output_text(ai_raw)
+        ai_model = chosen_model or args.model
+    else:
+        ai_error = error_text
 
     write_markdown_report(
         out_md,
@@ -680,9 +837,9 @@ def main():
         "security_rows": all_security_rows,
         "report_markdown": str(out_md),
         "report_csv": str(out_csv),
-        "openai_model": ai_model,
-        "openai_error": ai_error,
-        "openai_response": openai_raw,
+        "ai_model": ai_model,
+        "ai_error": ai_error,
+        "ai_response": ai_raw,
     }
     out_json.write_text(json.dumps(output_bundle, indent=2), encoding="utf-8")
 

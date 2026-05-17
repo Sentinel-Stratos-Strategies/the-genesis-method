@@ -191,6 +191,26 @@ post_process_output() {
   fi
 }
 
+list_plugins() {
+  if [[ -x "$PY_MAIN" && -e "$GENESIS_AGENT_SCRIPT" ]]; then
+    # Use plugin_runner.py to list
+    "$PY_MAIN" "$ROOT_DIR/tools/plugin_runner.py" --plugin-dir "$PLUGIN_DIR" --list || echo "[]"
+  else
+    echo "[]"
+  fi
+}
+
+run_plugin() {
+  local p_id="$1"
+  local p_target="$2"
+  local out_base="$OUT_DIR_HOUSE"
+  if [[ "$p_target" == "fam" ]]; then
+    out_base="$OUT_DIR_FAM"
+  fi
+  print_header "Running plugin: $p_id (target: $p_target)"
+  "$PY_MAIN" "$ROOT_DIR/tools/plugin_runner.py" --plugin-dir "$PLUGIN_DIR" --plugin "$p_id" --output-dir "$out_base"
+}
+
 menu() {
   cat <<'MENU'
 Choose a task:
@@ -238,6 +258,17 @@ Fam Section (/Users/fam):
   38) ClamAV full scan latest (fam)
   39) Plaso run (fam)
   40) Genesis Analyst (OpenAI) (fam)
+MENU
+
+  local plugins
+  plugins=$(list_plugins)
+  if [[ "$plugins" != "[]" ]]; then
+    echo ""
+    echo "Forensic Modules (type ID to run):"
+    echo "$plugins" | "$PY_MAIN" -c "import sys, json; [print(f'  - {p[\"id\"]}: {p[\"name\"]} ({p[\"target\"]})') for p in json.load(sys.stdin)]" 2>/dev/null
+  fi
+
+  cat <<'MENU'
 
 Common:
   89) Dark web monitor (counts only) (Apify)
@@ -773,11 +804,7 @@ run_full_with_report() {
   run_full_profile "$user_label" "$user_path"
   merge_latest_timelines "$user_label" || true
   generate_report "$user_label" || true
-  if [[ -n "${OPENAI_API_KEY:-}" ]]; then
-    run_genesis_agent "$user_label"
-  else
-    echo "OPENAI_API_KEY not set. Skipping Genesis Analyst."
-  fi
+  run_genesis_agent "$user_label" || true
 }
 
 run_genesis_agent() {
@@ -1048,7 +1075,20 @@ run_menu_choice() {
     97) open_latest_osint ;;
     98) full_osint_run ;;
     99) exit 0 ;;
-    *) echo "Invalid option: $choice"; return 1 ;;
+    *)
+      if [[ -n "$choice" ]]; then
+        # Check if it's a plugin ID
+        local plugins target
+        plugins=$(list_plugins)
+        target=$(echo "$plugins" | "$PY_MAIN" -c "import sys, json; p = [x for x in json.load(sys.stdin) if x['id'] == '$choice']; print(p[0]['target'] if p else '')" 2>/dev/null)
+        if [[ -n "$target" ]]; then
+          run_plugin "$choice" "$target"
+        else
+          echo "Invalid option: $choice"
+          return 1
+        fi
+      fi
+      ;;
   esac
 }
 

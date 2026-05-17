@@ -1,0 +1,228 @@
+{
+  "plugins": [
+    {
+      "id": "case_init_enterprise",
+      "name": "Case Init + Tool Versions",
+      "category": "Evidence Control",
+      "target": "enterprise",
+      "description": "CASE_CONTEXT.json, RUN_LEDGER.jsonl, TOOL_VERSIONS.txt, DIRECTORY_MAP.txt for selected evidence folder.",
+      "required_paths": ["{input_dir}"],
+      "command": ["{python}", "{tools}/genesis_forensic_ops.py", "case-init", "--output-dir", "{output_dir}", "--case-id", "GENESIS-ENTERPRISE", "--input", "{input_dir}"]
+    },
+    {
+      "id": "scope_guard_selected",
+      "name": "Scope Guard (selected folder)",
+      "category": "Evidence Control",
+      "target": "enterprise",
+      "description": "Ensures operations resolve inside the selected evidence root.",
+      "required_paths": ["{input_dir}"],
+      "command": ["{python}", "{tools}/genesis_forensic_ops.py", "scope-guard", "--root", "{input_dir}", "--path", "{input_dir}", "--output-dir", "{output_dir}"]
+    },
+    {
+      "id": "inventory_selected_folder",
+      "name": "Evidence Inventory + SHA-256",
+      "category": "Inventory",
+      "target": "enterprise",
+      "description": "Full file inventory for the selected evidence folder.",
+      "required_paths": ["{input_dir}"],
+      "command": ["{python}", "{tools}/genesis_forensic_ops.py", "inventory", "--source", "{input_dir}", "--output-dir", "{output_dir}"]
+    },
+    {
+      "id": "validate_toolchain",
+      "name": "Validate DFIR Toolchain",
+      "category": "Evidence Control",
+      "target": "enterprise",
+      "description": "Writes TOOLCHAIN_LOCK.json (Python, SAF/sysdiag, MVT, UAC, osquery, Velociraptor, YARA, Plaso, Timesketch, plutil, log).",
+      "command": ["{python}", "{tools}/genesis_forensic_ops.py", "validate-toolchain", "--output-dir", "{output_dir}"]
+    },
+    {
+      "id": "anchor_timeline_verify",
+      "name": "Anchor Timeline Verify",
+      "category": "Correlation",
+      "target": "enterprise",
+      "description": "Validates SENTINEL anchor JSON + sidecar SHA-256 when present under sysdiagnosis.",
+      "required_paths": ["{input_dir}/AI2_Correlator/anchors/SENTINEL_ANCHOR_TIMELINE_v1.json"],
+      "command": ["{python}", "{tools}/genesis_forensic_ops.py", "anchor-verify", "--anchor", "{input_dir}/AI2_Correlator/anchors/SENTINEL_ANCHOR_TIMELINE_v1.json", "--output-dir", "{output_dir}"]
+    },
+    {
+      "id": "normalize_scan_ai1",
+      "name": "Canonical Normalize (scan AI1 manifests)",
+      "category": "Correlation",
+      "target": "enterprise",
+      "description": "Finds SYSDIAG_FOLDER_MANIFEST*.csv / ICLOUD_SEARCH_MANIFEST*.csv under the evidence tree and emits CANONICAL_EVENTS (fixes rel_path vs entry_path drift).",
+      "required_paths": ["{input_dir}"],
+      "command": ["{python}", "{tools}/genesis_forensic_ops.py", "normalize-scan", "--scan-root", "{input_dir}", "--output-dir", "{output_dir}", "--case-id", "GENESIS", "--source-lane", "ai1-ai2"]
+    },
+    {
+      "id": "sysdiagnose_killcard_selected",
+      "name": "Sysdiagnose Killcard",
+      "category": "Sysdiagnose",
+      "target": "enterprise",
+      "description": "Focused IOC / identifier hits from text artifacts (not full JSON dumps).",
+      "required_paths": ["{input_dir}"],
+      "command": ["{python}", "{tools}/genesis_forensic_ops.py", "sysdiagnose-killcard", "--source", "{input_dir}", "--output-dir", "{output_dir}"]
+    },
+    {
+      "id": "icloud_takeout_ingest",
+      "name": "iCloud + Takeout CSV Ingest",
+      "category": "Cloud Evidence",
+      "target": "enterprise",
+      "description": "CSV dialect sniff + diagnostics; never silent-empty without warnings.",
+      "required_paths": ["{input_dir}"],
+      "command": ["{python}", "{tools}/genesis_forensic_ops.py", "icloud-takeout-ingest", "--input", "{input_dir}", "--output-dir", "{output_dir}"]
+    },
+    {
+      "id": "forensic_index_builder",
+      "name": "Build forensic_index.db",
+      "category": "Correlation",
+      "target": "enterprise",
+      "description": "SQLite index from inventory + canonical events + identifier regex scan.",
+      "command": ["{python}", "{tools}/genesis_forensic_ops.py", "index", "--output-dir", "{output_dir}", "--scan-source", "{input_dir}"]
+    },
+    {
+      "id": "finding_confidence",
+      "name": "Finding Confidence Scorer",
+      "category": "Correlation",
+      "target": "enterprise",
+      "description": "Scores canonical keyword bundles into low/medium/high confidence rows.",
+      "command": ["{python}", "{tools}/genesis_forensic_ops.py", "finding-confidence", "--input", "{output_dir}/canonical/CANONICAL_EVENTS.csv", "--output-dir", "{output_dir}"]
+    },
+    {
+      "id": "evidence_diff_stratos_sentinel",
+      "name": "Evidence Diff: Stratos Sysdiagnosis vs SENTINEL",
+      "category": "Correlation",
+      "target": "enterprise",
+      "description": "Cross-volume recurrent identifiers (requires both volumes mounted).",
+      "required_paths": ["/Volumes/Stratos_Tools/sysdiagnosis", "/Volumes/SENTINEL"],
+      "command": ["{python}", "{tools}/genesis_forensic_ops.py", "evidence-diff", "--source", "/Volumes/Stratos_Tools/sysdiagnosis", "--label", "stratos_sysdiagnosis", "--source", "/Volumes/SENTINEL", "--label", "sentinel_volume", "--output-dir", "{output_dir}"]
+    },
+    {
+      "id": "saf_sysdiagnose_enterprise",
+      "name": "EC-DIGIT SAF / sysdiag parse",
+      "category": "Sysdiagnose",
+      "target": "enterprise",
+      "description": "Runs bundled SAF: sysdiag create on archive or unpacked sysdiagnose tree, then parse all. Output: _SAF/cases/<case>/parsed_data.",
+      "required_paths": ["{tools}/sysdiagnose_saf_run.sh", "{tools}/sysdiagnose/.venv/bin/sysdiag"],
+      "command": ["bash", "{tools}/sysdiagnose_saf_run.sh", "{input_dir}", "{output_dir}/_SAF"]
+    },
+    {
+      "id": "run_folder_pipeline_full",
+      "name": "Run Full Folder Pipeline (ops)",
+      "category": "Bundles",
+      "target": "enterprise",
+      "description": "case-init, scope-guard, inventory, killcard, iCloud ingest, index, toolchain validation.",
+      "required_paths": ["{input_dir}"],
+      "command": ["{python}", "{tools}/genesis_forensic_ops.py", "run-folder", "--pipeline", "full", "--source", "{input_dir}", "--output-dir", "{output_dir}", "--case-id", "GENESIS-ENTERPRISE"]
+    },
+    {
+      "id": "summary_scan",
+      "name": "Genesis Summary Scan",
+      "category": "Built-in Genesis",
+      "target": "enterprise",
+      "description": "Emails, phones, UUIDs, IPs, domains, tokens summary.",
+      "command": ["{python}", "{tools}/summary_scan.py", "--output-dir", "{output_dir}"]
+    },
+    {
+      "id": "identifiers_scan",
+      "name": "Genesis Identifier Scan",
+      "category": "Built-in Genesis",
+      "target": "enterprise",
+      "description": "Structured identifier extraction to CSV/JSON/Markdown.",
+      "command": ["{python}", "{tools}/identifiers_scan.py", "--output-dir", "{output_dir}"]
+    },
+    {
+      "id": "hash_manifest",
+      "name": "Genesis Hash Manifest",
+      "category": "Built-in Genesis",
+      "target": "enterprise",
+      "description": "Post-run SHA-256 manifest for outputs.",
+      "command": ["{python}", "{tools}/hash_manifest.py", "--output-dir", "{output_dir}"]
+    },
+    {
+      "id": "sigma_scan",
+      "name": "Genesis Sigma-lite Scan",
+      "category": "Built-in Genesis",
+      "target": "enterprise",
+      "description": "Keyword Sigma-style rules over text artifacts.",
+      "required_paths": ["{root}/rules/sigma"],
+      "command": ["{python}", "{tools}/sigma_scan.py", "--output-dir", "{output_dir}", "--rules-dir", "{root}/rules/sigma"]
+    },
+    {
+      "id": "yara_scan",
+      "name": "Genesis YARA Scan",
+      "category": "Built-in Genesis",
+      "target": "enterprise",
+      "description": "Recursive YARA over output/evidence paths.",
+      "required_paths": ["{root}/rules/yara/sentinel_rules.yar"],
+      "command": ["{python}", "{tools}/yara_scan.py", "--output-dir", "{output_dir}", "--rules", "{root}/rules/yara/sentinel_rules.yar"]
+    },
+    {
+      "id": "ioc_enrich",
+      "name": "IOC Enrichment (VT / AbuseIPDB)",
+      "category": "OSINT",
+      "target": "enterprise",
+      "description": "Optional enrichment when API keys are present in environment.",
+      "command": ["{python}", "{tools}/ioc_enrich.py", "--output-dir", "{output_dir}"]
+    },
+    {
+      "id": "osint_pipeline",
+      "name": "OSINT Pipeline",
+      "category": "OSINT",
+      "target": "enterprise",
+      "description": "Legal-first enrichment pipeline; requires _OSINT/targets.txt (build with osint_targets or manually).",
+      "required_paths": ["{output_dir}/_OSINT/targets.txt"],
+      "command": ["{python}", "{tools}/osint_pipeline.py", "--targets-file", "{output_dir}/_OSINT/targets.txt", "--out-dir", "{output_dir}/_OSINT"]
+    },
+    {
+      "id": "darkweb_counts",
+      "name": "Dark Web Counts (Apify)",
+      "category": "OSINT",
+      "target": "enterprise",
+      "description": "Dark-web count lane when Apify credentials are configured; uses same targets list as OSINT pipeline.",
+      "required_paths": ["{output_dir}/_OSINT/targets.txt"],
+      "command": ["{python}", "{tools}/darkweb_counts.py", "--targets-file", "{output_dir}/_OSINT/targets.txt", "--out-dir", "{output_dir}/_OSINT/darkweb"]
+    },
+    {
+      "id": "genesis_analyst",
+      "name": "Genesis Analyst Synthesis",
+      "category": "Reporting",
+      "target": "enterprise",
+      "description": "Aggregates scans into Markdown/JSON/CSV; uses configured LLM when keys exist.",
+      "command": ["{python}", "{tools}/genesis_agent.py", "--user-label", "enterprise_case", "--out-base", "{output_dir}"]
+    },
+    {
+      "id": "build_report",
+      "name": "Build Lightweight Report",
+      "category": "Reporting",
+      "target": "enterprise",
+      "description": "Legacy HTML/report scaffold from macapt/iLEAPP/xLEAPP folders under the case output.",
+      "command": ["{python}", "{tools}/build_report.py", "--user-label", "enterprise_case", "--out-base", "{output_dir}"]
+    },
+    {
+      "id": "case_db_record",
+      "name": "Record Run in case_db",
+      "category": "Evidence Control",
+      "target": "enterprise",
+      "description": "Append a row to SQLite runs ledger beside the case.",
+      "command": ["{python}", "{tools}/case_db.py", "--db", "{output_dir}/genesis_runs.sqlite", "--user", "enterprise", "--tool", "webui_manual", "--output-dir", "{output_dir}"]
+    },
+    {
+      "id": "plaso_docker",
+      "name": "Plaso (Docker wrapper)",
+      "category": "Timeline",
+      "target": "enterprise",
+      "description": "Official log2timeline/plaso Docker image over selected evidence.",
+      "required_paths": ["{tools}/plaso_run.sh", "{input_dir}"],
+      "command": ["bash", "{tools}/plaso_run.sh", "{input_dir}", "{output_dir}/_Plaso"]
+    },
+    {
+      "id": "timesketch_compose",
+      "name": "Timesketch Docker Compose",
+      "category": "Timeline",
+      "target": "enterprise",
+      "description": "Starts local Timesketch stack when compose dir exists.",
+      "required_paths": ["{tools}/timesketch_start.sh"],
+      "command": ["bash", "{tools}/timesketch_start.sh"]
+    }
+  ]
+}

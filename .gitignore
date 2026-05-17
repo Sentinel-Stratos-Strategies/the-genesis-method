@@ -16,6 +16,13 @@ __pycache__/
 # Outputs and evidence
 /forensics_out/
 /inputs/
+/outputs/
+
+# SAF/sysdiagnose is a separate git clone (do not commit embedded repo)
+/tools/sysdiagnose/
+
+# Optional local symlink to memory-contract checkout
+/external/memory-contract
 /last_output_*.txt
 /last_osint_*.txt
 /genesis/STOP

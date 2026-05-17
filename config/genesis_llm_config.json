@@ -1,0 +1,28 @@
+{
+  "provider": "ollama",
+  "model": "mistral-nemo:latest",
+  "base_url": "http://127.0.0.1:11436",
+  "api_key_env": "GENESIS_LLM_API_KEY",
+  "temperature": 0.1,
+  "memory_roots": [
+    "/Volumes/SENTINEL/memory",
+    "/Volumes/SENTINEL/Developer",
+    "/Volumes/SENTINEL/SENTINEL_MistralNemo",
+    "/Volumes/Stratos_Tools/projects/GENESIS_MEMORY"
+  ],
+  "runtime": {
+    "type": "ollama",
+    "ollama_bin": "/Volumes/Stratos_Tools/homebrew/bin/ollama",
+    "runtime_script": "/Volumes/Stratos_Tools/projects/The_Genesis_Method/tools/ai/run_genesis_ollama_runtime.sh",
+    "orbstack_app": "/Applications/OrbStack.app",
+    "host": "127.0.0.1",
+    "port": 11436
+  },
+  "training": {
+    "framework": "unsloth",
+    "repo": "/Volumes/SENTINEL/AgentWork/training/unsloth",
+    "job_manifest": "/Volumes/Stratos_Tools/projects/GENESIS_MEMORY/ops/genesis_autoapprove/unsloth_job_manifest.json",
+    "train_script": "/Volumes/Stratos_Tools/projects/GENESIS_MEMORY/ops/genesis_autoapprove/train_unsloth_jobs.sh",
+    "mistral_training_run": "/Volumes/Stratos_Tools/projects/GENESIS_MEMORY/training_runs/mistral"
+  }
+}

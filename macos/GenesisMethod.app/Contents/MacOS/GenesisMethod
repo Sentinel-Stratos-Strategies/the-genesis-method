@@ -1,0 +1,16 @@
+#!/bin/bash
+# Genesis Method macOS bundle launcher — runs memory-contract gate then opens the WebUI by default.
+set -euo pipefail
+DIR="$(cd "$(dirname "$0")" && pwd)"
+RES="$(cd "$DIR/../Resources" && pwd)"
+ROOT="$(head -1 "$RES/GENESIS_ROOT.txt" 2>/dev/null | tr -d '\r' || true)"
+if [[ -z "${ROOT}" || ! -d "${ROOT}" ]]; then
+  osascript <<'OSA' || true
+display dialog "Genesis Method: edit Contents/Resources/GENESIS_ROOT.txt to the full path of your The_Genesis_Method clone (code only — never evidence)." buttons {"OK"} default button 1 with title "Genesis Method"
+OSA
+  exit 1
+fi
+export GENESIS_ROOT="$ROOT"
+bash "$ROOT/scripts/genesis_memory_contract_gate.sh" || true
+cd "$ROOT"
+exec /usr/bin/python3 "$ROOT/genesis_app_launcher.py" "$@"

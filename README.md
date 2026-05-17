@@ -108,7 +108,45 @@ The analyst report includes:
 - Source references (`file:line`) for evidence traceability
 - Security matches from YARA / Sigma / ClamAV / enrichment when present
 
-## 6) Identifier Script Location
+## 6) Dynamic Forensic Modules
+
+Genesis now supports lightweight dynamic modules through:
+
+- `tools/plugin_runner.py`
+- `plugins/*.py`
+- `plugins/*.json`
+
+List modules:
+
+```bash
+python3 tools/plugin_runner.py --plugin-dir plugins --list
+```
+
+Run one module:
+
+```bash
+python3 tools/plugin_runner.py \
+  --plugin-dir plugins \
+  --plugin validate_toolchain \
+  --output-dir /Users/House/EVIDENCE
+```
+
+The GUI, WebUI, and `run_forensics.sh` all read the same plugin registry. Manifest-backed modules can wrap built-in Genesis scripts, SAF/sysdiag, MVT, UAC, osquery, Velociraptor, YARA/YARA-X, Plaso, Timesketch, or future Mac TUI modules. Missing external tools are reported as skipped modules instead of pretending a scan ran.
+
+## 7) Genesis AI Engine
+
+The WebUI includes a Genesis AI Engine section for analyst synthesis. It defaults to the local Ollama lane:
+
+- provider: `ollama`
+- model: `mistral-nemo:latest`
+- base URL: `http://127.0.0.1:11436`
+- runtime wrapper: `tools/ai/run_genesis_ollama_runtime.sh`
+- config: `config/genesis_llm_config.json`
+- optional local secret env file: `config/.genesis_llm_secrets.env` with mode `600`
+
+The engine can also point at OpenAI-compatible providers by changing provider, model, base URL, and API key env name in the WebUI. The local config preserves the discovered Mistral Nemo, Ollama, OrbStack, Genesis memory, and Unsloth training paths.
+
+## 8) Identifier Script Location
 
 Identifier scanner script:
 
@@ -121,7 +159,7 @@ python3 /Users/house/genesis/tools/identifiers_scan.py \
   --output-dir "/path/to/specific/artifact_output"
 ```
 
-## 7) Important Usage Notes
+## 9) Important Usage Notes
 
 - If you are in a normal shell, typing just `36` or `39` will fail.  
   Use:
@@ -130,10 +168,13 @@ python3 /Users/house/genesis/tools/identifiers_scan.py \
 - `house` and `fam` outputs are intentionally separate.
 - Combined analyst (`93`) reads both sides and writes the consolidated report under House report folder.
 
-## 8) Environment Variables (Optional)
+## 10) Environment Variables (Optional)
 
-- `OPENAI_API_KEY` for analyst synthesis
-- `GENESIS_MODEL` (default from script/env)
+- `GENESIS_LLM_CONFIG` to override the AI engine config path
+- `GENESIS_LLM_SECRET_ENV` to override the local AI secret env file path
+- `GENESIS_LLM_API_KEY` or the configured API-key env name for third-party AI providers
+- `OPENAI_API_KEY` still works when the provider is OpenAI
+- `GENESIS_MODEL` to temporarily override the configured model
 - `GENESIS_MODEL_FALLBACKS` (comma-separated)
 - `GENESIS_PPLX_ENV_FILE` path to a `KEY=value` env file containing Perplexity/Sonar + OSINT keys
   - default: `/Users/house/Tools/pplx/config/perplexity_api.env`
@@ -141,12 +182,12 @@ python3 /Users/house/genesis/tools/identifiers_scan.py \
 - `OUT_DIR_FAM` to override fam output base
 - `GENESIS_FAM_ROOT` to control fam root detection
 
-## 9) Quick Sanity Check
+## 11) Quick Sanity Check
 
 ```bash
 cd /Users/house/genesis
 bash -n run_forensics.sh
-python3 -m py_compile tools/genesis_agent.py forensics_gui.py forensics_webui.py
+python3 -m py_compile tools/genesis_agent.py tools/plugin_runner.py tools/genesis_forensic_ops.py forensics_gui.py forensics_webui.py
 ```
 
 If those pass, launch and run `--choice 93`.

@@ -17,7 +17,17 @@ async function postJson(url, payload) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  return resp.json();
+  let data = {};
+  try {
+    data = await resp.json();
+  } catch (_err) {
+    /* ignore empty body */
+  }
+  if (!resp.ok && data.message === undefined) {
+    data.ok = false;
+    data.message = `HTTP ${resp.status}`;
+  }
+  return data;
 }
 
 async function fetchStatus() {
@@ -38,6 +48,49 @@ async function fetchConfig() {
 async function fetchLlmConfig() {
   const resp = await fetch("/api/llm/config");
   return resp.json();
+}
+
+async function fetchNotifications() {
+  const resp = await fetch("/api/notifications");
+  return resp.json();
+}
+
+function notificationsPayload() {
+  return {
+    enabled: $("notify-enabled").checked,
+    macos_desktop: $("notify-macos").checked,
+    email: {
+      enabled: $("notify-email-enabled").checked,
+      recipients: $("notify-recipients").value
+        .split(",")
+        .map((v) => v.trim())
+        .filter(Boolean),
+    },
+  };
+}
+
+function renderNotifications(data) {
+  const cfg = data.config || {};
+  const email = cfg.email || {};
+  $("notify-enabled").checked = cfg.enabled !== false;
+  $("notify-macos").checked = cfg.macos_desktop !== false;
+  $("notify-email-enabled").checked = email.enabled !== false;
+  $("notify-recipients").value = (email.recipients || []).join(", ");
+  const parts = [];
+  if (data.actionLog) parts.push(`action log: ${data.actionLog}`);
+  if (data.notificationLog) parts.push(`notify log: ${data.notificationLog}`);
+  $("notify-status").textContent = parts.length
+    ? parts.join(" | ")
+    : "Notifications ready.";
+}
+
+async function loadNotifications() {
+  try {
+    const data = await fetchNotifications();
+    renderNotifications(data);
+  } catch (_err) {
+    $("notify-status").textContent = "Notification API unavailable.";
+  }
 }
 
 function setStatus(text, meta, running) {
@@ -106,7 +159,7 @@ async function loadPlugins() {
 async function loadConfig() {
   const cfg = await fetchConfig();
   $("input-dir").value =
-    cfg.defaultInputDir || cfg.evidenceInputRoot || "/Volumes/Stratos_Tools/GENESIS_EVIDENCE_INPUT/staging";
+    cfg.defaultInputDir || cfg.evidenceInputRoot || "/Volumes/SENTINEL/GENESIS_EVIDENCE_INPUT";
   $("output-base").value =
     cfg.defaultOutputBase || cfg.evidenceOutputRoot || "/Volumes/SENTINEL/GENESIS_EVIDENCE_OUTPUT/runs";
   $("output-name").value = `genesis_case_${new Date().toISOString().slice(0, 19).replaceAll(":", "").replace("T", "_")}`;
@@ -205,10 +258,31 @@ function bindActions() {
     await refreshStatus();
     setTimeout(loadLlmConfig, 2500);
   });
+
+  $("save-notify").addEventListener("click", async () => {
+    $("notify-status").textContent = "Saving notification settings...";
+    const out = await postJson("/api/notifications/save", notificationsPayload());
+    if (out.config) renderNotifications({ config: out.config, actionLog: "", notificationLog: "" });
+    $("notify-status").textContent = out.message || "Notification settings saved.";
+  });
+
+  $("test-notify").addEventListener("click", async () => {
+    $("notify-status").textContent = "Sending test notification...";
+    const out = await postJson("/api/notifications/test", {
+      message: "Genesis dashboard test — notifications and log delivery are active.",
+    });
+    const delivered = out.result?.delivered?.length || 0;
+    const errors = out.result?.errors?.length || 0;
+    $("notify-status").textContent = out.message
+      ? `${out.message} (${delivered} delivered, ${errors} errors)`
+      : "Test complete.";
+    await loadNotifications();
+  });
 }
 
 async function main() {
   await loadConfig();
+  await loadNotifications();
   await loadLlmConfig();
   await loadPlugins();
   bindActions();

@@ -22,4 +22,11 @@ enum GenesisPaths {
         }
         return genesisRepoPathHardcoded
     }
+
+    static let evidenceInputRoot = "/Volumes/SENTINEL/GENESIS_EVIDENCE_INPUT"
+    static let evidenceOutputRoot = "/Volumes/SENTINEL/GENESIS_EVIDENCE_OUTPUT/runs"
+
+    static var webActionLog: String {
+        "\(evidenceOutputRoot)/_logs/webui_actions.log"
+    }
 }

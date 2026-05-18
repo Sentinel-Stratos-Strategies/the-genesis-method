@@ -23,11 +23,37 @@
         <p id="run-meta" class="muted">No active run.</p>
       </section>
 
+      <section class="panel notify-panel">
+        <h2>Notifications</h2>
+        <label class="toggle-row">
+          <input id="notify-enabled" type="checkbox" checked />
+          <span>Enable alerts + log delivery</span>
+        </label>
+        <label class="toggle-row">
+          <input id="notify-macos" type="checkbox" checked />
+          <span>macOS desktop banners</span>
+        </label>
+        <label class="toggle-row">
+          <input id="notify-email-enabled" type="checkbox" checked />
+          <span>Email log delivery</span>
+        </label>
+        <label class="wide notify-field">
+          <span>Recipients (comma-separated)</span>
+          <input id="notify-recipients" type="text" spellcheck="false" />
+        </label>
+        <p id="notify-status" class="muted">Loading notification settings...</p>
+        <div class="notify-actions">
+          <button id="save-notify" class="secondary">Save Alerts</button>
+          <button id="test-notify" class="secondary">Send Test</button>
+        </div>
+      </section>
+
       <section class="panel">
         <h2>Case Links</h2>
         <nav class="links">
           <a href="/outputs/">Output Repository</a>
           <a href="/outputs/_logs/webui_actions.log">Action Log</a>
+          <a href="/outputs/_logs/notifications.log">Notification Log</a>
           <a href="/workspace/docs/perplexity-computer-readback-2026-05-17.md">Perplexity Readback</a>
           <a href="/workspace/README.md">Operational README</a>
         </nav>

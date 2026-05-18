@@ -23,6 +23,29 @@ def _run_gate() -> None:
     subprocess.run(["bash", str(gate)], cwd=str(ROOT), env=env, check=False)
 
 
+def _run_gate_background() -> None:
+    """Snapshot gate without blocking the GUI (npm validators can take a long time)."""
+    gate = ROOT / "scripts" / "genesis_memory_contract_gate.sh"
+    if not gate.is_file():
+        return
+    env = os.environ.copy()
+    env.setdefault("GENESIS_ROOT", str(ROOT))
+    subprocess.Popen(
+        ["bash", str(gate)],
+        cwd=str(ROOT),
+        env=env,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+
+
+def _exec_python(script: Path) -> int:
+    os.execv(sys.executable, [sys.executable, str(script)])
+    return 127
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="The Genesis Method launcher")
     parser.add_argument("--skip-gate", action="store_true", help="Skip memory-contract snapshot gate")
@@ -32,13 +55,16 @@ def main() -> int:
     args = parser.parse_args()
 
     if not args.skip_gate:
-        _run_gate()
+        if args.gui:
+            _run_gate_background()
+        else:
+            _run_gate()
 
     if args.gui:
-        return subprocess.call([sys.executable, str(ROOT / "forensics_gui.py")])
+        return _exec_python(ROOT / "forensics_gui.py")
     if args.tui:
-        return subprocess.call([sys.executable, str(ROOT / "tools" / "genesis_tui.py")])
-    return subprocess.call([sys.executable, str(ROOT / "forensics_webui.py")])
+        return _exec_python(ROOT / "tools" / "genesis_tui.py")
+    return _exec_python(ROOT / "forensics_webui.py")
 
 
 if __name__ == "__main__":

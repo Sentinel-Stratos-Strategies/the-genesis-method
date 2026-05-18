@@ -1,0 +1,3 @@
+[actions.Run]
+command = "./script/build_and_run.sh --verify"
+description = "Build and launch the Genesis Method macOS evidence console"

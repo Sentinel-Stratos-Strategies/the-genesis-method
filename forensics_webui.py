@@ -21,6 +21,11 @@ PROJECT_NAME = ROOT_PATH.name
 
 sys.path.insert(0, os.path.join(ROOT_HOUSE, "tools"))
 from genesis_paths import load_paths as _load_genesis_paths  # noqa: E402
+from genesis_notify import (  # noqa: E402
+    load_notifications_config,
+    notify_event,
+    save_notifications_config,
+)
 
 _GP = _load_genesis_paths(ROOT_PATH)
 HOUSE_OUT_BASE = os.environ.get("OUT_DIR_HOUSE", "/Users/House/EVIDENCE")
@@ -49,8 +54,9 @@ PLUGIN_DIR = os.path.join(ROOT_HOUSE, "plugins")
 CONFIG_DIR = os.path.join(ROOT_HOUSE, "config")
 LLM_CONFIG_PATH = os.path.join(CONFIG_DIR, "genesis_llm_config.json")
 LLM_SECRET_ENV_PATH = os.path.join(CONFIG_DIR, ".genesis_llm_secrets.env")
+NOTIFICATIONS_CONFIG_PATH = os.path.join(CONFIG_DIR, "genesis_notifications.json")
 PORT = 8123
-DEFAULT_INPUT_DIR = os.environ.get("GENESIS_DEFAULT_INPUT", _GP.get("evidence_input_root") or "/Volumes/Stratos_Tools/GENESIS_EVIDENCE_INPUT/staging")
+DEFAULT_INPUT_DIR = os.environ.get("GENESIS_DEFAULT_INPUT", _GP.get("evidence_input_root") or "/Volumes/SENTINEL/GENESIS_EVIDENCE_INPUT")
 DEFAULT_OUTPUT_BASE = ENTERPRISE_OUT_BASE
 API_LOG = os.path.join(DEFAULT_OUTPUT_BASE, "_logs", "webui_actions.log")
 
@@ -69,6 +75,50 @@ RUN_STATE = {
 
 def ensure_log_dir():
     os.makedirs(os.path.dirname(API_LOG), exist_ok=True)
+
+
+def notifications_config():
+    return load_notifications_config(NOTIFICATIONS_CONFIG_PATH)
+
+
+def emit_notification(event, title, message, *, success=None):
+    ensure_log_dir()
+    try:
+        return notify_event(
+            notifications_config(),
+            event=event,
+            title=title,
+            message=message,
+            log_path=API_LOG,
+            log_dir=os.path.dirname(API_LOG),
+            success=success,
+        )
+    except Exception as exc:
+        note = os.path.join(os.path.dirname(API_LOG), "notifications.log")
+        with open(note, "a", encoding="utf-8") as handle:
+            handle.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} notify_error event={event} err={exc}\n")
+        return {"errors": [str(exc)]}
+
+
+def notify_run_started(label):
+    emit_notification(
+        "run_started",
+        "Run started",
+        f"{label} started at {time.strftime('%Y-%m-%d %H:%M:%S')}\nLog: {API_LOG}",
+        success=True,
+    )
+
+
+def notify_run_finished(label, rc):
+    success = rc == 0
+    event = "run_completed" if success else "run_failed"
+    title = "Run completed" if success else "Run failed"
+    emit_notification(
+        event,
+        title,
+        f"{label} finished with rc={rc} at {time.strftime('%Y-%m-%d %H:%M:%S')}\nLog: {API_LOG}",
+        success=success,
+    )
 
 
 def _safe_case_name(value: str) -> str:
@@ -272,19 +322,33 @@ def start_llm_runtime(payload=None):
         RUN_STATE["pid"] = proc.pid
         RUN_STATE["started_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
 
+    notify_run_started(f"llm:{model}")
+
     def _watch():
-        rc = proc.wait()
-        log_handle.write(f"=== llm runtime completed rc={rc} ===\n")
-        log_handle.flush()
-        log_handle.close()
-        with RUN_LOCK:
-            RUN_STATE["running"] = False
-            RUN_STATE["last_choice"] = f"llm:{model}"
-            RUN_STATE["last_rc"] = rc
-            RUN_STATE["last_finished_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
-            RUN_STATE["choice"] = None
-            RUN_STATE["pid"] = None
-            RUN_STATE["started_at"] = None
+        rc = -1
+        try:
+            rc = proc.wait()
+            log_handle.write(f"=== llm runtime completed rc={rc} ===\n")
+        except Exception as exc:
+            try:
+                log_handle.write(f"=== llm watcher error: {exc} ===\n")
+            except Exception:
+                pass
+        finally:
+            try:
+                log_handle.flush()
+                log_handle.close()
+            except Exception:
+                pass
+            with RUN_LOCK:
+                RUN_STATE["running"] = False
+                RUN_STATE["last_choice"] = f"llm:{model}"
+                RUN_STATE["last_rc"] = rc
+                RUN_STATE["last_finished_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+                RUN_STATE["choice"] = None
+                RUN_STATE["pid"] = None
+                RUN_STATE["started_at"] = None
+            notify_run_finished(f"llm:{model}", rc)
 
     threading.Thread(target=_watch, daemon=True).start()
     return True, f"Started local LLM runtime for {model} (pid {proc.pid})."
@@ -307,17 +371,18 @@ def list_plugins():
 def launch_plugin(plugin_id: str, payload=None):
     payload = payload or {}
     ensure_log_dir()
+    # Resolve plugins outside RUN_LOCK — list_plugins() shells out and must not block other HTTP clients.
+    plugins = list_plugins()
+    plugin = next((p for p in plugins if p["id"] == plugin_id), None)
+    if not plugin:
+        return False, f"Plugin not found: {plugin_id}"
+
+    input_dir, _output_base, _output_name, target_dir = _resolve_run_config(payload)
+    os.makedirs(target_dir, exist_ok=True)
+
     with RUN_LOCK:
         if RUN_STATE["running"]:
             return False, "A run is already in progress."
-
-        plugins = list_plugins()
-        plugin = next((p for p in plugins if p["id"] == plugin_id), None)
-        if not plugin:
-            return False, f"Plugin not found: {plugin_id}"
-
-        input_dir, _output_base, _output_name, target_dir = _resolve_run_config(payload)
-        os.makedirs(target_dir, exist_ok=True)
 
         env = os.environ.copy()
         env["GENESIS_FAM_ROOT"] = ROOT_FAM
@@ -351,19 +416,33 @@ def launch_plugin(plugin_id: str, payload=None):
         RUN_STATE["pid"] = proc.pid
         RUN_STATE["started_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
 
+    notify_run_started(f"plugin:{plugin_id}")
+
     def _watch():
-        rc = proc.wait()
-        log_handle.write(f"=== plugin completed rc={rc} ===\n")
-        log_handle.flush()
-        log_handle.close()
-        with RUN_LOCK:
-            RUN_STATE["running"] = False
-            RUN_STATE["last_choice"] = f"plugin:{plugin_id}"
-            RUN_STATE["last_rc"] = rc
-            RUN_STATE["last_finished_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
-            RUN_STATE["choice"] = None
-            RUN_STATE["pid"] = None
-            RUN_STATE["started_at"] = None
+        rc = -1
+        try:
+            rc = proc.wait()
+            log_handle.write(f"=== plugin completed rc={rc} ===\n")
+        except Exception as exc:
+            try:
+                log_handle.write(f"=== plugin watcher error: {exc} ===\n")
+            except Exception:
+                pass
+        finally:
+            try:
+                log_handle.flush()
+                log_handle.close()
+            except Exception:
+                pass
+            with RUN_LOCK:
+                RUN_STATE["running"] = False
+                RUN_STATE["last_choice"] = f"plugin:{plugin_id}"
+                RUN_STATE["last_rc"] = rc
+                RUN_STATE["last_finished_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+                RUN_STATE["choice"] = None
+                RUN_STATE["pid"] = None
+                RUN_STATE["started_at"] = None
+            notify_run_finished(f"plugin:{plugin_id}", rc)
 
     threading.Thread(target=_watch, daemon=True).start()
     return True, f"Started plugin {plugin_id} (pid {proc.pid})."
@@ -415,19 +494,33 @@ def launch_folder_pipeline(payload):
         RUN_STATE["pid"] = proc.pid
         RUN_STATE["started_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
 
+    notify_run_started(f"folder:{pipeline}")
+
     def _watch():
-        rc = proc.wait()
-        log_handle.write(f"=== folder pipeline completed rc={rc} ===\n")
-        log_handle.flush()
-        log_handle.close()
-        with RUN_LOCK:
-            RUN_STATE["running"] = False
-            RUN_STATE["last_choice"] = f"folder:{pipeline}"
-            RUN_STATE["last_rc"] = rc
-            RUN_STATE["last_finished_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
-            RUN_STATE["choice"] = None
-            RUN_STATE["pid"] = None
-            RUN_STATE["started_at"] = None
+        rc = -1
+        try:
+            rc = proc.wait()
+            log_handle.write(f"=== folder pipeline completed rc={rc} ===\n")
+        except Exception as exc:
+            try:
+                log_handle.write(f"=== folder watcher error: {exc} ===\n")
+            except Exception:
+                pass
+        finally:
+            try:
+                log_handle.flush()
+                log_handle.close()
+            except Exception:
+                pass
+            with RUN_LOCK:
+                RUN_STATE["running"] = False
+                RUN_STATE["last_choice"] = f"folder:{pipeline}"
+                RUN_STATE["last_rc"] = rc
+                RUN_STATE["last_finished_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+                RUN_STATE["choice"] = None
+                RUN_STATE["pid"] = None
+                RUN_STATE["started_at"] = None
+            notify_run_finished(f"folder:{pipeline}", rc)
 
     threading.Thread(target=_watch, daemon=True).start()
     return True, f"Started {pipeline} folder pipeline for {input_dir} -> {output_dir} (pid {proc.pid})."
@@ -460,19 +553,33 @@ def launch_choice(choice: str):
         RUN_STATE["pid"] = proc.pid
         RUN_STATE["started_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
 
+    notify_run_started(f"choice:{choice}")
+
     def _watch():
-        rc = proc.wait()
-        log_handle.write(f"=== completed rc={rc} ===\n")
-        log_handle.flush()
-        log_handle.close()
-        with RUN_LOCK:
-            RUN_STATE["running"] = False
-            RUN_STATE["last_choice"] = choice
-            RUN_STATE["last_rc"] = rc
-            RUN_STATE["last_finished_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
-            RUN_STATE["choice"] = None
-            RUN_STATE["pid"] = None
-            RUN_STATE["started_at"] = None
+        rc = -1
+        try:
+            rc = proc.wait()
+            log_handle.write(f"=== completed rc={rc} ===\n")
+        except Exception as exc:
+            try:
+                log_handle.write(f"=== choice watcher error: {exc} ===\n")
+            except Exception:
+                pass
+        finally:
+            try:
+                log_handle.flush()
+                log_handle.close()
+            except Exception:
+                pass
+            with RUN_LOCK:
+                RUN_STATE["running"] = False
+                RUN_STATE["last_choice"] = choice
+                RUN_STATE["last_rc"] = rc
+                RUN_STATE["last_finished_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+                RUN_STATE["choice"] = None
+                RUN_STATE["pid"] = None
+                RUN_STATE["started_at"] = None
+            notify_run_finished(f"choice:{choice}", rc)
 
     threading.Thread(target=_watch, daemon=True).start()
     return True, f"Started choice {choice} (pid {proc.pid})."
@@ -522,6 +629,15 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             })
         if parsed.path == "/api/llm/config":
             return self._send_json(200, llm_status())
+        if parsed.path == "/api/notifications":
+            cfg = notifications_config()
+            log_dir = os.path.dirname(API_LOG)
+            note_log = os.path.join(log_dir, "notifications.log")
+            return self._send_json(200, {
+                "config": cfg,
+                "notificationLog": note_log if os.path.exists(note_log) else "",
+                "actionLog": API_LOG,
+            })
         if parsed.path.startswith("/assets/"):
             rel = parsed.path.replace("/assets/", "", 1)
             asset_path = os.path.join(ASSETS_DIR, rel)
@@ -558,6 +674,30 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self._send_json(409, {"ok": False, "message": msg})
         if parsed.path == "/api/llm/test":
             return self._send_json(200, {"ok": True, "status": llm_status()})
+        if parsed.path == "/api/notifications/save":
+            config = save_notifications_config(NOTIFICATIONS_CONFIG_PATH, _read_json_body(self))
+            return self._send_json(200, {
+                "ok": True,
+                "message": "Notification settings saved.",
+                "config": config,
+            })
+        if parsed.path == "/api/notifications/test":
+            body = _read_json_body(self)
+            message = (body.get("message") or "Genesis dashboard notification test.").strip()
+            result = emit_notification(
+                "test_ping",
+                "Notification test",
+                f"{message}\nDashboard: http://127.0.0.1:{PORT}/\nTime: {time.strftime('%Y-%m-%d %H:%M:%S')}",
+                success=True,
+            )
+            delivered = len(result.get("delivered", []))
+            errors = result.get("errors", [])
+            ok = delivered > 0 or not errors
+            return self._send_json(200 if ok else 502, {
+                "ok": ok,
+                "message": "Notification test dispatched." if ok else "Notification test failed.",
+                "result": result,
+            })
         self.send_error(404)
 
     def translate_path(self, path):
@@ -586,11 +726,14 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 os.chdir(ROOT_HOUSE)
 
 
-class ReusableTCPServer(socketserver.TCPServer):
+class GenesisThreadingHTTPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+    """Serve WebUI + API concurrently so long plugin listings / runs cannot wedge the whole UI."""
+
     allow_reuse_address = True
+    daemon_threads = True
 
 
-with ReusableTCPServer(("127.0.0.1", PORT), Handler) as httpd:
+with GenesisThreadingHTTPServer(("127.0.0.1", PORT), Handler) as httpd:
     print(f"Serving {ROOT_HOUSE} at http://127.0.0.1:{PORT}/")
     print(f"Serving enterprise outputs at http://127.0.0.1:{PORT}/outputs/")
     _open_browser = os.environ.get("GENESIS_WEBUI_OPEN_BROWSER", "1").strip().lower()

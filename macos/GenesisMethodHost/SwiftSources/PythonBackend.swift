@@ -38,6 +38,8 @@ final class PythonBackend: ObservableObject {
         var env = ProcessInfo.processInfo.environment
         env["GENESIS_ROOT"] = root
         env["GENESIS_WEBUI_OPEN_BROWSER"] = "0"
+        env["GENESIS_DEFAULT_INPUT"] = GenesisPaths.evidenceInputRoot
+        env["GENESIS_OUTPUT_BASE"] = GenesisPaths.evidenceOutputRoot
         proc.environment = env
 
         let pipe = Pipe()

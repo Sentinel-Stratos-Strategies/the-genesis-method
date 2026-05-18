@@ -13,6 +13,9 @@
 		A10000000000000000000004 /* WebDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000004 /* WebDashboardView.swift */; };
 		A10000000000000000000005 /* GENESIS_ROOT.txt in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000005 /* GENESIS_ROOT.txt */; };
 		A10000000000000000000006 /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A20000000000000000000006 /* WebKit.framework */; };
+		A10000000000000000000007 /* GenesisPluginRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000007 /* GenesisPluginRegistry.swift */; };
+		A10000000000000000000008 /* GenesisAppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000008 /* GenesisAppIntents.swift */; };
+		A10000000000000000000009 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000009 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -23,6 +26,9 @@
 		A20000000000000000000004 /* WebDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebDashboardView.swift; sourceTree = "<group>"; };
 		A20000000000000000000005 /* GENESIS_ROOT.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = GENESIS_ROOT.txt; sourceTree = "<group>"; };
 		A20000000000000000000006 /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
+		A20000000000000000000007 /* GenesisPluginRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenesisPluginRegistry.swift; sourceTree = "<group>"; };
+		A20000000000000000000008 /* GenesisAppIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenesisAppIntents.swift; sourceTree = "<group>"; };
+		A20000000000000000000009 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -50,6 +56,7 @@
 			children = (
 				A50000000000000000000004 /* SwiftSources */,
 				A50000000000000000000005 /* Resources */,
+				A20000000000000000000009 /* Assets.xcassets */,
 			);
 			path = .;
 			sourceTree = "<group>";
@@ -67,6 +74,8 @@
 			children = (
 				A20000000000000000000001 /* GenesisMethodHostApp.swift */,
 				A20000000000000000000002 /* GenesisPaths.swift */,
+				A20000000000000000000007 /* GenesisPluginRegistry.swift */,
+				A20000000000000000000008 /* GenesisAppIntents.swift */,
 				A20000000000000000000003 /* PythonBackend.swift */,
 				A20000000000000000000004 /* WebDashboardView.swift */,
 			);
@@ -140,6 +149,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A10000000000000000000005 /* GENESIS_ROOT.txt in Resources */,
+				A10000000000000000000009 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -152,6 +162,8 @@
 			files = (
 				A10000000000000000000001 /* GenesisMethodHostApp.swift in Sources */,
 				A10000000000000000000002 /* GenesisPaths.swift in Sources */,
+				A10000000000000000000007 /* GenesisPluginRegistry.swift in Sources */,
+				A10000000000000000000008 /* GenesisAppIntents.swift in Sources */,
 				A10000000000000000000003 /* PythonBackend.swift in Sources */,
 				A10000000000000000000004 /* WebDashboardView.swift in Sources */,
 			);
@@ -164,6 +176,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
@@ -193,6 +206,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;

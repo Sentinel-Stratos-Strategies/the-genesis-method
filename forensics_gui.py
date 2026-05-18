@@ -5,8 +5,11 @@ import subprocess
 import sys
 import threading
 import time
-import tkinter as tk
 from pathlib import Path
+
+os.environ.setdefault("TK_SILENCE_DEPRECATION", "1")
+
+import tkinter as tk
 from tkinter import filedialog
 
 ROOT = str(Path(__file__).resolve().parent)
@@ -144,6 +147,24 @@ class App(tk.Tk):
         self._load_last_run()
 
         self._build_ui()
+        self._present_window()
+
+    def _present_window(self):
+        """Center on screen and raise above other windows (macOS often opens Tk behind IDE/browser)."""
+        w, h = 1280, 920
+        try:
+            self.update_idletasks()
+            sw = self.winfo_screenwidth()
+            sh = self.winfo_screenheight()
+            x = max(0, (sw - w) // 2)
+            y = max(0, (sh - h) // 2)
+            self.geometry(f"{w}x{h}+{x}+{y}")
+            self.lift()
+            self.attributes("-topmost", True)
+            self.after(300, lambda: self.attributes("-topmost", False))
+            self.focus_force()
+        except tk.TclError:
+            pass
 
     def _refresh_gui_log_path(self):
         global GUI_LOG_FILE

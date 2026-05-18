@@ -24,17 +24,21 @@ export SYSDIAGNOSE_CASES_PATH="$SAF_ROOT/cases"
 mkdir -p "$SYSDIAGNOSE_CASES_PATH"
 
 SOURCE=""
-while IFS= read -r -d '' f; do
-  SOURCE="$f"
-  break
-done < <(find "$INPUT_DIR" \( -iname '*.tar.gz' -o -iname '*.tgz' \) -print0 2>/dev/null)
+while IFS= read -r logf; do
+  [[ -n "$logf" ]] || continue
+  candidate="$(dirname "$logf")"
+  base="$(basename "$candidate")"
+  if [[ "$base" == sysdiagnose* ]]; then
+    SOURCE="$candidate"
+    break
+  fi
+done < <(find "$INPUT_DIR" -name sysdiagnose.log -print 2>/dev/null | sort)
 
 if [[ -z "$SOURCE" ]]; then
-  while IFS= read -r logf; do
-    [[ -n "$logf" ]] || continue
-    SOURCE="$(dirname "$logf")"
+  while IFS= read -r -d '' f; do
+    SOURCE="$f"
     break
-  done < <(find "$INPUT_DIR" -name sysdiagnose.log -print 2>/dev/null | head -n 1)
+  done < <(find "$INPUT_DIR" \( -iname 'sysdiagnose*.tar.gz' -o -iname 'sysdiagnose*.tgz' \) -print0 2>/dev/null)
 fi
 
 if [[ -z "${SOURCE:-}" ]]; then

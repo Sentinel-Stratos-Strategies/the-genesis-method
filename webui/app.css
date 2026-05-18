@@ -550,3 +550,40 @@ select:focus {
     justify-self: stretch;
   }
 }
+
+.notify-panel .toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.notify-panel .toggle-row input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--cyan);
+}
+
+.notify-field {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0;
+}
+
+.notify-field input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(8, 5, 20, 0.72);
+  color: var(--text);
+}
+
+.notify-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 8px;
+}
